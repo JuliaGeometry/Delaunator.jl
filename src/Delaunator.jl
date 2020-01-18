@@ -1,7 +1,9 @@
 module Delaunator
 
+using OffsetArrays
+
 const EPSILON = 2^-52 # eps()
-const EDGE_STACK = Vector{UInt32}(undef,512)
+const EDGE_STACK = OffsetVector{UInt32}(undef,0:511)
 
 # monotonically increases with real angle, but doesn't need expensive trigonometry
 function pseudoAngle(dx, dy)
