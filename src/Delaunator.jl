@@ -6,46 +6,40 @@ const EPSILON = 2^-52 # eps()
 const EDGE_STACK = OffsetVector{UInt32}(undef,0:511)
 
 
+function delaunator!(coords)
+    n = length(coords)
+    coords = Vector{Float64}(undef, n * 2)
 
-function delaunator(coords) {
-    const n = length(points.length)
-    const coords = Vector{Float64}(undef, n * 2)
+    for i = 0:n-1
+        cp = coords[i]
+        coords[2 * i] = defaultgetX(p)
+        coords[2 * i + 1] = defaultgetY(p)
+    end
 
-    for (let i = 0; i < n; i++) {
-        const p = points[i];
-        coords[2 * i] = defaultgetX(p);
-        coords[2 * i + 1] = defaultgetY(p);
-    }
+    #return new Delaunator(coords);
 
-    return new Delaunator(coords);
-
-    const n = coords.length >> 1
-    if (n > 0 && typeof coords[0] !== 'number') throw new Error('Expected coords to contain numbers.')
-
-    this.coords = coords
+    n = n/2 # coords.length >> 1
+    #if (n > 0 && typeof coords[0] !== 'number') throw new Error('Expected coords to contain numbers.')
 
     # arrays that will store the triangulation graph
-    const maxTriangles = Math.max(2 * n - 5, 0)
-    this._triangles = new Uint32Array(maxTriangles * 3)
-    this._halfedges = new Int32Array(maxTriangles * 3)
+    maxTriangles = max(2 * n - 5, 0)
+    _triangles =  OffsetVector{UInt32}(undef,0:(maxTriangles * 3)-1)
+    _halfedges = OffsetVector{UInt32}(undef,0:(maxTriangles * 3)-1)
 
     # temporary arrays for tracking the edges of the advancing convex hull
-    this._hashSize = Math.ceil(Math.sqrt(n));
-    this._hullPrev = new Uint32Array(n) # edge to prev edge
-    this._hullNext = new Uint32Array(n) # edge to next edge
-    this._hullTri = new Uint32Array(n) # edge to adjacent triangle
-    this._hullHash = new Int32Array(this._hashSize).fill(-1) # angular edge hash
+    _hashSize = ceil(sqrt(n))
+    _hullPrev = OffsetVector{UInt32}(undef,0:n-1) # edge to prev edge
+    _hullNext = OffsetVector{UInt32}(undef,0:n-1)# edge to next edge
+    _hullTri = OffsetVector{UInt32}(undef,0:n-1) # edge to adjacent triangle
+    _hullHash = fill!(OffsetVector{Int32}(undef,0:n-1), -1) # angular edge hash
 
     # temporary arrays for sorting points
-    this._ids = new Uint32Array(n)
-    this._dists = new Float64Array(n)
+    _ids = OffsetVector{UInt32}(undef,0:n-1)
+    _dists = OffsetVector{Float64}(undef,0:n-1)
 
-    this.update()
-end
+    #this.update()
 
-
-function update(coords, hullPrev, hullNext, hullTri, hullHash)
-    n = coords.length >> 1
+    n = n/2 # coords.length >> 1 # n/2
 
     # populate an array of point indices; calculate input data bbox
     minX = Inf
@@ -112,27 +106,29 @@ function update(coords, hullPrev, hullNext, hullTri, hullHash)
     if minRadius == Inf
         # order collinear points by dx (or dy if all x are identical)
         # and return the list as a hull
-        for (let i = 0; i < n; i++)
-            this._dists[i] = (coords[2 * i] - coords[0]) || (coords[2 * i + 1] - coords[1]);
+        for i = 0:n-1
+            _dists[i] = (coords[2 * i] - coords[0]) || (coords[2 * i + 1] - coords[1]);
         end
-        quicksort(this._ids, this._dists, 0, n - 1)
-        hull = new Uint32Array(n)
-        let j = 0;
-        for (let i = 0, d0 = -Infinity; i < n; i++) {
-            const id = this._ids[i];
-            if (this._dists[id] > d0) {
-                hull[j++] = id;
-                d0 = this._dists[id];
-            }
-        }
-        this.hull = hull.subarray(0, j);
-        this.triangles = new Uint32Array(0);
-        this.halfedges = new Uint32Array(0);
-        return;
+        quicksort(_ids, _dists, 0, n - 1)
+        hull = OffsetVector{UInt32}(undef,0:n-1)
+        j = 0
+        d0 = -Inf
+        for i = 0:n-1
+            id = _ids[i]
+            if _dists[id] > d0
+                hull[j] = id
+                j += 1
+                d0 = _dists[id]
+            end
+        end
+        hull = resize!(hull, j+1)
+        triangles = OffsetVector{UInt32}(undef, 0:0)
+        halfedges = OffsetVector{UInt32}(undef, 0:0)
+        return
     end
 
     # swap the order of the seed points for counter-clockwise orientation
-    if (orient(i0x, i0y, i1x, i1y, i2x, i2y))
+    if orient(i0x, i0y, i1x, i1y, i2x, i2y)
         i = i1
         x = i1x
         y = i1y
@@ -149,11 +145,11 @@ function update(coords, hullPrev, hullNext, hullTri, hullHash)
     _cy = center[2]
 
     for i = 0:n-1
-        this._dists[i] = dist(coords[2 * i], coords[2 * i + 1], _cx, _cy);
+        _dists[i] = dist(coords[2 * i], coords[2 * i + 1], _cx, _cy)
     end
 
     # sort the points by distance from the seed triangle circumcenter
-    quicksort(_ids, _dists, 0, n - 1);
+    quicksort(_ids, _dists, 0, n - 1)
 
     # set up the seed triangle as the starting hull
     _hullStart = i0
@@ -163,99 +159,112 @@ function update(coords, hullPrev, hullNext, hullTri, hullHash)
     hullNext[i1] = hullPrev[i0] = i2
     hullNext[i2] = hullPrev[i1] = i0
 
-    hullTri[i0] = 0;
-    hullTri[i1] = 1;
-    hullTri[i2] = 2;
+    hullTri[i0] = 0
+    hullTri[i1] = 1
+    hullTri[i2] = 2
 
     hullHash.fill(-1);
-    hullHash[this._hashKey(i0x, i0y)] = i0;
-    hullHash[this._hashKey(i1x, i1y)] = i1;
-    hullHash[this._hashKey(i2x, i2y)] = i2;
+    hullHash[_hashKey(i0x, i0y)] = i0
+    hullHash[_hashKey(i1x, i1y)] = i1
+    hullHash[_hashKey(i2x, i2y)] = i2
 
-    this.trianglesLen = 0;
-    this._addTriangle(i0, i1, i2, -1, -1, -1);
+    trianglesLen = 0
+    _addTriangle(i0, i1, i2, -1, -1, -1)
 
-    for (let k = 0, xp, yp; k < this._ids.length; k++) {
-        const i = this._ids[k];
-        const x = coords[2 * i];
-        const y = coords[2 * i + 1];
+    xp = 0.0
+    yp = 0.0
+    for k = 0:length(_ids)-1
+        i = _ids[k]
+        x = coords[2 * i]
+        y = coords[2 * i + 1]
 
-        // skip near-duplicate points
-        if (k > 0 && Math.abs(x - xp) <= EPSILON && Math.abs(y - yp) <= EPSILON) continue;
+        # skip near-duplicate points
+        if k > 0 && abs(x - xp) <= EPSILON && abs(y - yp) <= EPSILON
+            continue
+        end
         xp = x
         yp = y
 
-        // skip seed triangle points
-        if (i === i0 || i === i1 || i === i2) continue;
+        # skip seed triangle points
+        if i === i0 || i === i1 || i === i2
+            continue
+        end
 
-        // find a visible edge on the convex hull using edge hash
-        let start = 0;
-        for (let j = 0, key = this._hashKey(x, y); j < this._hashSize; j++) {
-            start = hullHash[(key + j) % this._hashSize];
-            if (start !== -1 && start !== hullNext[start]) break;
-        }
+        # find a visible edge on the convex hull using edge hash
+        start = 0
+        key = _hashKey(x, y)
+        for j = 0:_hashSize-1
+            start = hullHash[(key + j) % this._hashSize]
+            start != -1 && start != hullNext[start] && break
+        end
 
-        start = hullPrev[start];
-        let e = start, q;
-        while (q = hullNext[e], !orient(x, y, coords[2 * e], coords[2 * e + 1], coords[2 * q], coords[2 * q + 1])) {
-            e = q;
-            if (e === start) {
-                e = -1;
-                break;
-            }
-        }
-        if (e === -1) continue; // likely a near-duplicate point; skip it
+        start = hullPrev[start]
+        e = start
+        q = hullNext[e]
+        while !orient(x, y, coords[2 * e], coords[2 * e + 1], coords[2 * q], coords[2 * q + 1])
+            q = hullNext[e]
+            e = q
+            if e == start
+                e = -1
+                break
+            end
+        end
+        e == -1 && continue # likely a near-duplicate point; skip it
 
-        // add the first triangle from the point
-        let t = this._addTriangle(e, i, hullNext[e], -1, -1, hullTri[e]);
+        # add the first triangle from the point
+        t = _addTriangle(e, i, hullNext[e], -1, -1, hullTri[e])
 
-        // recursively flip triangles from the point until they satisfy the Delaunay condition
-        hullTri[i] = this._legalize(t + 2);
-        hullTri[e] = t; // keep track of boundary triangles on the hull
-        hullSize++;
+        # recursively flip triangles from the point until they satisfy the Delaunay condition
+        hullTri[i] = _legalize(t + 2)
+        hullTri[e] = t # keep track of boundary triangles on the hull
+        hullSize++
 
-        // walk forward through the hull, adding more triangles and flipping recursively
-        let n = hullNext[e];
-        while (q = hullNext[n], orient(x, y, coords[2 * n], coords[2 * n + 1], coords[2 * q], coords[2 * q + 1])) {
-            t = this._addTriangle(n, i, q, hullTri[i], -1, hullTri[n]);
-            hullTri[i] = this._legalize(t + 2);
-            hullNext[n] = n; // mark as removed
-            hullSize--;
-            n = q;
-        }
+        # walk forward through the hull, adding more triangles and flipping recursively
+        n = hullNext[e]
+        q = hullNext[n]
+        while orient(x, y, coords[2 * n], coords[2 * n + 1], coords[2 * q], coords[2 * q + 1])
+            t = _addTriangle(n, i, q, hullTri[i], -1, hullTri[n])
+            hullTri[i] = _legalize(t + 2)
+            hullNext[n] = n # mark as removed
+            hullSize -= 1
+            n = q
+            q = hullNext[n]
+        end
 
-        // walk backward from the other side, adding more triangles and flipping
-        if (e === start) {
-            while (q = hullPrev[e], orient(x, y, coords[2 * q], coords[2 * q + 1], coords[2 * e], coords[2 * e + 1])) {
-                t = this._addTriangle(q, i, e, -1, hullTri[e], hullTri[q]);
-                this._legalize(t + 2);
-                hullTri[q] = t;
-                hullNext[e] = e; // mark as removed
-                hullSize--;
-                e = q;
-            }
-        }
+        # walk backward from the other side, adding more triangles and flipping
+        if e == start
+            q = hullPrev[e]
+            while orient(x, y, coords[2 * q], coords[2 * q + 1], coords[2 * e], coords[2 * e + 1])
+                t = _addTriangle(q, i, e, -1, hullTri[e], hullTri[q])
+                _legalize(t + 2)
+                hullTri[q] = t
+                hullNext[e] = e # mark as removed
+                hullSize -= 1
+                e = q
+                q = hullPrev[e]
+            end
+        end
 
-        // update the hull indices
-        this._hullStart = hullPrev[i] = e;
-        hullNext[e] = hullPrev[n] = i;
-        hullNext[i] = n;
+        # update the hull indices
+        _hullStart = hullPrev[i] = e
+        hullNext[e] = hullPrev[n] = i
+        hullNext[i] = n
 
-        // save the two new edges in the hash table
-        hullHash[this._hashKey(x, y)] = i;
-        hullHash[this._hashKey(coords[2 * e], coords[2 * e + 1])] = e;
-    }
+        # save the two new edges in the hash table
+        hullHash[this._hashKey(x, y)] = i
+        hullHash[this._hashKey(coords[2 * e], coords[2 * e + 1])] = e
+    end
 
-    this.hull = new Uint32Array(hullSize);
-    for (let i = 0, e = this._hullStart; i < hullSize; i++) {
-        this.hull[i] = e;
-        e = hullNext[e];
-    }
+    hull = OffsetVector{UInt32}(undef,0:hullSize-1)
+    for i = 0:hullSize-1
+        e = _hullStart
+        hull[i] = e
+        e = hullNext[e]
+    end
 
-    // trim typed triangle mesh arrays
-    this.triangles = this._triangles.subarray(0, this.trianglesLen);
-    this.halfedges = this._halfedges.subarray(0, this.trianglesLen);
-}
+    # trim typed triangle mesh arrays
+    return (resize!(_triangles, trianglesLen), resize!(_halfedges, trianglesLen))
+end
 
 
 function _hashKey(x, y, cx, cy, _hashSize)
@@ -357,7 +366,7 @@ end
 
 function _link(_halfedges, a, b)
     _halfedges[a] = b
-    b !== -1 && _halfedges[b] = a
+    b != -1 && (_halfedges[b] = a)
 end
 
 
@@ -458,7 +467,8 @@ function quicksort(ids, dists, left, right)
             tempDist = dists[temp]
             j = i - 1
             while j >= left && dists[ids[j]] > tempDist
-                #ids[j + 1] = ids[j--]
+                ids[j + 1] = ids[j]
+                j -= 1
             end
             ids[j + 1] = temp
             i += 1
