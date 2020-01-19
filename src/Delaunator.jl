@@ -6,32 +6,36 @@ const EPSILON = 2^-52 # eps()
 const EDGE_STACK = OffsetVector{UInt32}(undef,0:511)
 
 
-function delaunator!(coords)
-    n = length(coords)
-    coords = Vector{Float64}(undef, n * 2)
+function delaunator!(points)
+    n = length(points)
+    coords = OffsetVector{Float64}(undef, 0:(n*2))
 
+    @show n
+    @show coords
     for i = 0:n-1
-        cp = coords[i]
-        coords[2 * i] = defaultgetX(p)
-        coords[2 * i + 1] = defaultgetY(p)
+        p = points[i+1]
+        @show p
+        coords[2 * i] = defaultGetX(p)
+        coords[2 * i + 1] = defaultGetY(p)
     end
-
+    @show "1"
     #return new Delaunator(coords);
 
-    n = n/2 # coords.length >> 1
+    n = div(n,2) # coords.length >> 1
     #if (n > 0 && typeof coords[0] !== 'number') throw new Error('Expected coords to contain numbers.')
 
     # arrays that will store the triangulation graph
     maxTriangles = max(2 * n - 5, 0)
+    @show typeof(maxTriangles),  maxTriangles
     _triangles =  OffsetVector{UInt32}(undef,0:(maxTriangles * 3)-1)
     _halfedges = OffsetVector{UInt32}(undef,0:(maxTriangles * 3)-1)
 
     # temporary arrays for tracking the edges of the advancing convex hull
-    _hashSize = ceil(sqrt(n))
-    _hullPrev = OffsetVector{UInt32}(undef,0:n-1) # edge to prev edge
-    _hullNext = OffsetVector{UInt32}(undef,0:n-1)# edge to next edge
-    _hullTri = OffsetVector{UInt32}(undef,0:n-1) # edge to adjacent triangle
-    _hullHash = fill!(OffsetVector{Int32}(undef,0:n-1), -1) # angular edge hash
+    _hashSize = ceil(Int,sqrt(n))
+    hullPrev = OffsetVector{UInt32}(undef,0:n-1) # edge to prev edge
+    hullNext = OffsetVector{UInt32}(undef,0:n-1)# edge to next edge
+    hullTri = OffsetVector{UInt32}(undef,0:n-1) # edge to adjacent triangle
+    hullHash = fill!(OffsetVector{Int32}(undef,0:n-1), -1) # angular edge hash
 
     # temporary arrays for sorting points
     _ids = OffsetVector{UInt32}(undef,0:n-1)
@@ -39,7 +43,7 @@ function delaunator!(coords)
 
     #this.update()
 
-    n = n/2 # coords.length >> 1 # n/2
+    #n = n/2 # coords.length >> 1 # n/2
 
     # populate an array of point indices; calculate input data bbox
     minX = Inf
@@ -107,7 +111,8 @@ function delaunator!(coords)
         # order collinear points by dx (or dy if all x are identical)
         # and return the list as a hull
         for i = 0:n-1
-            _dists[i] = (coords[2 * i] - coords[0]) || (coords[2 * i + 1] - coords[1]);
+            cxv = (coords[2 * i] - coords[0])
+            _dists[i] = !iszero(cxv) ? cxv : (coords[2 * i + 1] - coords[1])
         end
         quicksort(_ids, _dists, 0, n - 1)
         hull = OffsetVector{UInt32}(undef,0:n-1)
@@ -124,7 +129,7 @@ function delaunator!(coords)
         hull = resize!(hull, j+1)
         triangles = OffsetVector{UInt32}(undef, 0:0)
         halfedges = OffsetVector{UInt32}(undef, 0:0)
-        return
+        return hull # TODO
     end
 
     # swap the order of the seed points for counter-clockwise orientation
@@ -163,13 +168,13 @@ function delaunator!(coords)
     hullTri[i1] = 1
     hullTri[i2] = 2
 
-    hullHash.fill(-1);
-    hullHash[_hashKey(i0x, i0y)] = i0
-    hullHash[_hashKey(i1x, i1y)] = i1
-    hullHash[_hashKey(i2x, i2y)] = i2
+    fill!(hullHash,-1)
+    hullHash[_hashKey(i0x, i0y,_cx,_cy,_hashSize)] = i0
+    hullHash[_hashKey(i1x, i1y,_cx,_cy,_hashSize)] = i1
+    hullHash[_hashKey(i2x, i2y,_cx,_cy,_hashSize)] = i2
 
     trianglesLen = 0
-    _addTriangle(i0, i1, i2, -1, -1, -1)
+    _addTriangle(_triangles, _halfedges, trianglesLen, i0, i1, i2, -1, -1, -1)
 
     xp = 0.0
     yp = 0.0
@@ -192,9 +197,9 @@ function delaunator!(coords)
 
         # find a visible edge on the convex hull using edge hash
         start = 0
-        key = _hashKey(x, y)
+        key = _hashKey(x, y, _cx, _cy, _hashSize)
         for j = 0:_hashSize-1
-            start = hullHash[(key + j) % this._hashSize]
+            start = hullHash[(key + j) % _hashSize]
             start != -1 && start != hullNext[start] && break
         end
 
@@ -251,8 +256,8 @@ function delaunator!(coords)
         hullNext[i] = n
 
         # save the two new edges in the hash table
-        hullHash[this._hashKey(x, y)] = i
-        hullHash[this._hashKey(coords[2 * e], coords[2 * e + 1])] = e
+        hullHash[_hashKey(x, y,_cx,_cy,_hashSize)] = i
+        hullHash[_hashKey(coords[2 * e], coords[2 * e + 1],_cx,_cy,_hashSize)] = e
     end
 
     hull = OffsetVector{UInt32}(undef,0:hullSize-1)
@@ -268,7 +273,7 @@ end
 
 
 function _hashKey(x, y, cx, cy, _hashSize)
-    return floor(pseudoAngle(x - _cx, y - _cy) * _hashSize) % _hashSize
+    return floor(Int, pseudoAngle(x - cx, y - cy) * _hashSize) % _hashSize
 end
 
 function _legalize(a, triangles, halfedges, coords)
@@ -329,16 +334,16 @@ function _legalize(a, triangles, halfedges, coords)
             if hbl === -1
                 e = _hullStart
                 # CAUTION do-while
-                if _hullTri[e] == bl
-                    _hullTri[e] = a
+                if hullTri[e] == bl
+                    hullTri[e] = a
                 else
-                    e = _hullPrev[e]
+                    e = hullPrev[e]
                     while e != _hullStart
-                        if this._hullTri[e] == bl
-                            this._hullTri[e] = a
+                        if this.hullTri[e] == bl
+                            this.hullTri[e] = a
                             break
                         end
-                        e = this._hullPrev[e]
+                        e = hullPrev[e]
                     end
                 end
             end
@@ -365,7 +370,8 @@ end
 
 
 function _link(_halfedges, a, b)
-    _halfedges[a] = b
+    @show a, b
+    _halfedges[a] = b == -1 ? typemax(UInt32) : b
     b != -1 && (_halfedges[b] = a)
 end
 
@@ -405,9 +411,9 @@ end
 
 # a more robust orientation test that's stable in a given triangle (to fix robustness issues)
 function orient(rx, ry, qx, qy, px, py)
-    return (orientIfSure(px, py, rx, ry, qx, qy) ||
-        orientIfSure(rx, ry, qx, qy, px, py) ||
-        orientIfSure(qx, qy, px, py, rx, ry)) < 0
+    return orientIfSure(px, py, rx, ry, qx, qy) < 0 ||
+           orientIfSure(rx, ry, qx, qy, px, py) < 0 ||
+           orientIfSure(qx, qy, px, py, rx, ry) < 0
 end
 
 function inCircle(ax, ay, bx, by, cx, cy, px, py)
@@ -486,8 +492,14 @@ function quicksort(ids, dists, left, right)
         tempDist = dists[temp]
         while true
             # TODO
-            #do i++; while (dists[ids[i]] < tempDist);
-            #do j--; while (dists[ids[j]] > tempDist);
+            i += 1
+            while dists[ids[i]] < tempDist
+                i += 1
+            end
+            j -= 1
+            while dists[ids[j]] > tempDist
+                j -= 1
+            end
             j < i && break
             swap(ids, i, j)
         end

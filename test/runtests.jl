@@ -1,6 +1,8 @@
 using Delaunator
 using Test
 
+@show Delaunator.delaunator!([[0, 1], [1, 0], [1, 1]])
+@show Delaunator.delaunator!([[516, 661], [369, 793], [426, 539], [273, 525], [204, 694], [747, 750], [454, 390]])
 # import {test} from 'tape';
 # import Delaunator from '../index.js';
 
@@ -131,53 +133,55 @@ using Test
 #     return (orient(p, r, q) || orient(r, q, p) || orient(q, p, r)) >= 0;
 # }
 
-# function validate(t, points, d = Delaunator.from(points)) {
-#     // validate halfedges
-#     for (let i = 0; i < d.halfedges.length; i++) {
-#         const i2 = d.halfedges[i];
-#         if (i2 !== -1 && d.halfedges[i2] !== i) {
-#             t.fail('invalid halfedge connection');
-#         }
-#     }
-#     t.pass('halfedges are valid');
+function validate(t, points, d = Delaunator.from(points)) {
+    # validate halfedges
+    for (let i = 0; i < d.halfedges.length; i++) {
+        const i2 = d.halfedges[i];
+        if i2 !== -1 && d.halfedges[i2] != i
+            t.fail('invalid halfedge connection');
+        end
+    end
+    t.pass('halfedges are valid');
 
-#     // validate triangulation
-#     const hullAreas = [];
-#     for (let i = 0, len = d.hull.length, j = len - 1; i < len; j = i++) {
-#         const [x0, y0] = points[d.hull[j]];
-#         const [x, y] = points[d.hull[i]];
-#         hullAreas.push((x - x0) * (y + y0));
-#         const c = convex(points[d.hull[j]], points[d.hull[(j + 1) % d.hull.length]],  points[d.hull[(j + 3) % d.hull.length]]);
-#         if (!c) t.fail(`hull is not convex at ${j}`);
-#     }
-#     const hullArea = sum(hullAreas);
+    # validate triangulation
+    const hullAreas = [];
+    for (let i = 0, len = d.hull.length, j = len - 1; i < len; j = i++) {
+        const [x0, y0] = points[d.hull[j]];
+        const [x, y] = points[d.hull[i]];
+        hullAreas.push((x - x0) * (y + y0));
+        const c = convex(points[d.hull[j]], points[d.hull[(j + 1) % d.hull.length]],  points[d.hull[(j + 3) % d.hull.length]]);
+        if (!c) t.fail(`hull is not convex at ${j}`);
+    }
+    hullArea = kahansum(hullAreas)
 
-#     const triangleAreas = [];
-#     for (let i = 0; i < d.triangles.length; i += 3) {
-#         const [ax, ay] = points[d.triangles[i]];
-#         const [bx, by] = points[d.triangles[i + 1]];
-#         const [cx, cy] = points[d.triangles[i + 2]];
-#         triangleAreas.push(Math.abs((by - ay) * (cx - bx) - (bx - ax) * (cy - by)));
-#     }
-#     const trianglesArea = sum(triangleAreas);
+    const triangleAreas = [];
+    for (let i = 0; i < d.triangles.length; i += 3) {
+        const [ax, ay] = points[d.triangles[i]];
+        const [bx, by] = points[d.triangles[i + 1]];
+        const [cx, cy] = points[d.triangles[i + 2]];
+        triangleAreas.push(Math.abs((by - ay) * (cx - bx) - (bx - ax) * (cy - by)));
+    }
+    trianglesArea = sum(triangleAreas)
 
-#     const err = Math.abs((hullArea - trianglesArea) / hullArea);
-#     if (err <= Math.pow(2, -51)) {
-#         t.pass(`triangulation is valid: ${err} error`);
-#     } else {
-#         t.fail(`triangulation is broken: ${err} error`);
-#     }
-# }
+    err = abs((hullArea - trianglesArea) / hullArea)
+    if err <= 2^-51
+        # t.pass(`triangulation is valid: ${err} error`);
+        return true
+    else
+        #t.fail(`triangulation is broken: ${err} error`);
+        return false
+    end
+end
 
-# // Kahan and Babuska summation, Neumaier variant; accumulates less FP error
-# function sum(x) {
-#     let sum = x[0];
-#     let err = 0;
-#     for (let i = 1; i < x.length; i++) {
-#         const k = x[i];
-#         const m = sum + k;
-#         err += Math.abs(sum) >= Math.abs(k) ? sum - m + k : k - m + sum;
-#         sum = m;
-#     }
-#     return sum + err;
-# }
+# Kahan and Babuska summation, Neumaier variant; accumulates less FP error
+function kahansum(x)
+    sum = x[0]
+    err = 0
+    for i = 1:length(x)-1
+        k = x[i]
+        m = sum + k
+        err += abs(sum) >= abs(k) ? sum - m + k : k - m + sum
+        sum = m
+    end
+    return sum + err
+end
