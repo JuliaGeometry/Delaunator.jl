@@ -2,6 +2,7 @@ using Delaunator
 using Test
 
 @show Delaunator.delaunator!([[0, 1], [1, 0], [1, 1]])
+@show Delaunator.delaunator!([[0, 1], [1, 0], [0, 0], [1, 1]])
 @show Delaunator.delaunator!([[516, 661], [369, 793], [426, 539], [273, 525], [204, 694], [747, 750], [454, 390]])
 # import {test} from 'tape';
 # import Delaunator from '../index.js';

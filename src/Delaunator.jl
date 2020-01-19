@@ -5,6 +5,12 @@ using OffsetArrays
 const EPSILON = 2^-52 # eps()
 const EDGE_STACK = OffsetVector{UInt32}(undef,0:511)
 
+mutable struct DelaunatorData
+    _triangles::OffsetVector{UInt32}
+    _halfedges::OffsetVector{UInt32}
+end
+
+
 
 function delaunator!(points)
     n = length(points)
@@ -62,6 +68,7 @@ function delaunator!(points)
     end
     cx = (minX + maxX) / 2
     cy = (minY + maxY) / 2
+    @show cx, cy
 
     minDist = Inf
     i0 = 0
@@ -71,19 +78,22 @@ function delaunator!(points)
     # pick a seed point close to the center
     for i = 0:n-1
         d = dist(cx, cy, coords[2 * i], coords[2 * i + 1])
+        @show d
         if d < minDist
             i0 = i
+            @show minDist
             minDist = d
         end
     end
     i0x = coords[2 * i0]
     i0y = coords[2 * i0 + 1]
-
+    @show i0x,i0y
     minDist = Inf
 
     # find the point closest to the seed
     for i = 0:n-1
         i == i0 && continue
+        @show minDist
         d = dist(i0x, i0y, coords[2 * i], coords[2 * i + 1])
         if d < minDist && d > 0
             i1 = i
@@ -92,6 +102,8 @@ function delaunator!(points)
     end
     i1x = coords[2 * i1]
     i1y = coords[2 * i1 + 1]
+
+    @show i1x, i1y
 
     minRadius = Inf
 
@@ -173,8 +185,7 @@ function delaunator!(points)
     hullHash[_hashKey(i1x, i1y,_cx,_cy,_hashSize)] = i1
     hullHash[_hashKey(i2x, i2y,_cx,_cy,_hashSize)] = i2
 
-    trianglesLen = 0
-    _addTriangle(_triangles, _halfedges, trianglesLen, i0, i1, i2, -1, -1, -1)
+    trianglesLen = _addTriangle(_triangles, _halfedges, 0, i0, i1, i2, -1, -1, -1)
 
     xp = 0.0
     yp = 0.0
@@ -198,6 +209,7 @@ function delaunator!(points)
         # find a visible edge on the convex hull using edge hash
         start = 0
         key = _hashKey(x, y, _cx, _cy, _hashSize)
+        @show key
         for j = 0:_hashSize-1
             start = hullHash[(key + j) % _hashSize]
             start != -1 && start != hullNext[start] && break
@@ -207,13 +219,14 @@ function delaunator!(points)
         e = start
         q = hullNext[e]
         while !orient(x, y, coords[2 * e], coords[2 * e + 1], coords[2 * q], coords[2 * q + 1])
-            q = hullNext[e]
             e = q
             if e == start
                 e = -1
                 break
             end
+            q = hullNext[e]
         end
+
         e == -1 && continue # likely a near-duplicate point; skip it
 
         # add the first triangle from the point
@@ -222,7 +235,7 @@ function delaunator!(points)
         # recursively flip triangles from the point until they satisfy the Delaunay condition
         hullTri[i] = _legalize(t + 2)
         hullTri[e] = t # keep track of boundary triangles on the hull
-        hullSize++
+        hullSize += 1
 
         # walk forward through the hull, adding more triangles and flipping recursively
         n = hullNext[e]
@@ -331,7 +344,7 @@ function _legalize(a, triangles, halfedges, coords)
             hbl = halfedges[bl]
 
             # edge swapped on the other side of the hull (rare); fix the halfedge reference
-            if hbl === -1
+            if hbl == -1
                 e = _hullStart
                 # CAUTION do-while
                 if hullTri[e] == bl
@@ -387,7 +400,7 @@ function _addTriangle(_triangles, _halfedges, t, i0, i1, i2, a, b, c)
     _link(_halfedges, t + 1, b)
     _link(_halfedges, t + 2, c)
 
-    nothing
+    return t + 3
 end
 
 # monotonically increases with real angle, but doesn't need expensive trigonometry
@@ -411,6 +424,9 @@ end
 
 # a more robust orientation test that's stable in a given triangle (to fix robustness issues)
 function orient(rx, ry, qx, qy, px, py)
+    #return (orientIfSure(px, py, rx, ry, qx, qy) ||
+    #    orientIfSure(rx, ry, qx, qy, px, py) ||
+    #    orientIfSure(qx, qy, px, py, rx, ry)) < 0;
     return orientIfSure(px, py, rx, ry, qx, qy) < 0 ||
            orientIfSure(rx, ry, qx, qy, px, py) < 0 ||
            orientIfSure(qx, qy, px, py, rx, ry) < 0
@@ -491,7 +507,6 @@ function quicksort(ids, dists, left, right)
         temp = ids[i]
         tempDist = dists[temp]
         while true
-            # TODO
             i += 1
             while dists[ids[i]] < tempDist
                 i += 1
