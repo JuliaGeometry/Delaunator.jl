@@ -3,6 +3,9 @@ uuid = "466f8f70-d5e3-4806-ac0b-a54b75a91218"
 authors = ["Steve Kelly"]
 version = "0.1.0"
 
+[deps]
+OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
+
 [compat]
 julia = "1"
 
