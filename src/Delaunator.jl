@@ -7,7 +7,7 @@ const EDGE_STACK = OffsetVector{UInt32}(undef,0:511)
 
 mutable struct DelaunatorData
     _triangles::OffsetVector{UInt32}
-    _halfedges::OffsetVector{UInt32}
+    _halfedges::OffsetVector{Int32}
 end
 
 
@@ -16,15 +16,15 @@ function delaunator!(points)
     n = length(points)
     coords = OffsetVector{Float64}(undef, 0:(n*2))
 
-    @show n
-    @show coords
+    #@show n
+    #@show coords
     for i = 0:n-1
         p = points[i+1]
-        @show p
+        #@show p
         coords[2 * i] = defaultGetX(p)
         coords[2 * i + 1] = defaultGetY(p)
     end
-    @show "1"
+    #@show "1"
     #return new Delaunator(coords);
 
     n = div(n,2) # coords.length >> 1
@@ -32,9 +32,9 @@ function delaunator!(points)
 
     # arrays that will store the triangulation graph
     maxTriangles = max(2 * n - 5, 0)
-    @show typeof(maxTriangles),  maxTriangles
+    #@show typeof(maxTriangles),  maxTriangles
     _triangles =  OffsetVector{UInt32}(undef,0:(maxTriangles * 3)-1)
-    _halfedges = OffsetVector{UInt32}(undef,0:(maxTriangles * 3)-1)
+    _halfedges = OffsetVector{Int32}(undef,0:(maxTriangles * 3)-1)
 
     # temporary arrays for tracking the edges of the advancing convex hull
     _hashSize = ceil(Int,sqrt(n))
@@ -68,7 +68,7 @@ function delaunator!(points)
     end
     cx = (minX + maxX) / 2
     cy = (minY + maxY) / 2
-    @show cx, cy
+    #@show cx, cy
 
     minDist = Inf
     i0 = 0
@@ -78,22 +78,22 @@ function delaunator!(points)
     # pick a seed point close to the center
     for i = 0:n-1
         d = dist(cx, cy, coords[2 * i], coords[2 * i + 1])
-        @show d
+        #@show d
         if d < minDist
             i0 = i
-            @show minDist
+            #@show minDist
             minDist = d
         end
     end
     i0x = coords[2 * i0]
     i0y = coords[2 * i0 + 1]
-    @show i0x,i0y
+    #@show i0x,i0y
     minDist = Inf
 
     # find the point closest to the seed
     for i = 0:n-1
         i == i0 && continue
-        @show minDist
+        #@show minDist
         d = dist(i0x, i0y, coords[2 * i], coords[2 * i + 1])
         if d < minDist && d > 0
             i1 = i
@@ -103,7 +103,7 @@ function delaunator!(points)
     i1x = coords[2 * i1]
     i1y = coords[2 * i1 + 1]
 
-    @show i1x, i1y
+    #@show i1x, i1y
 
     minRadius = Inf
 
@@ -209,7 +209,7 @@ function delaunator!(points)
         # find a visible edge on the convex hull using edge hash
         start = 0
         key = _hashKey(x, y, _cx, _cy, _hashSize)
-        @show key
+        #@show key
         for j = 0:_hashSize-1
             start = hullHash[(key + j) % _hashSize]
             start != -1 && start != hullNext[start] && break
@@ -230,10 +230,11 @@ function delaunator!(points)
         e == -1 && continue # likely a near-duplicate point; skip it
 
         # add the first triangle from the point
-        t = _addTriangle(e, i, hullNext[e], -1, -1, hullTri[e])
+        trianglesLen = _addTriangle(_triangles, _halfedges, trianglesLen, e, i, hullNext[e], -1, -1, hullTri[e])
+        t = trianglesLen-3
 
         # recursively flip triangles from the point until they satisfy the Delaunay condition
-        hullTri[i] = _legalize(t + 2)
+        hullTri[i] = _legalize(t + 2, _triangles, _halfedges, coords)
         hullTri[e] = t # keep track of boundary triangles on the hull
         hullSize += 1
 
@@ -241,8 +242,9 @@ function delaunator!(points)
         n = hullNext[e]
         q = hullNext[n]
         while orient(x, y, coords[2 * n], coords[2 * n + 1], coords[2 * q], coords[2 * q + 1])
-            t = _addTriangle(n, i, q, hullTri[i], -1, hullTri[n])
-            hullTri[i] = _legalize(t + 2)
+            trianglesLen = _addTriangle(_triangles, _halfedges, trianglesLen, n, i, q, hullTri[i], -1, hullTri[n])
+            t = trianglesLen-3
+            hullTri[i] = _legalize(t + 2, _triangles, _halfedges, coords)
             hullNext[n] = n # mark as removed
             hullSize -= 1
             n = q
@@ -253,8 +255,9 @@ function delaunator!(points)
         if e == start
             q = hullPrev[e]
             while orient(x, y, coords[2 * q], coords[2 * q + 1], coords[2 * e], coords[2 * e + 1])
-                t = _addTriangle(q, i, e, -1, hullTri[e], hullTri[q])
-                _legalize(t + 2)
+                trianglesLen = _addTriangle(_triangles, _halfedges, trianglesLen, q, i, e, -1, hullTri[e], hullTri[q])
+                t = trianglesLen-3
+                _legalize(t + 2, _triangles, _halfedges, coords)
                 hullTri[q] = t
                 hullNext[e] = e # mark as removed
                 hullSize -= 1
@@ -367,7 +370,7 @@ function _legalize(a, triangles, halfedges, coords)
             br = b0 + (b + 1) % 3
 
             # don't worry about hitting the cap: it can only happen on extremely degenerate input
-            if i < EDGE_STACK.length
+            if i < length(EDGE_STACK)
                 EDGE_STACK[i] = br
                 i += 1
             end
@@ -383,10 +386,14 @@ end
 
 
 function _link(_halfedges, a, b)
-    @show a, b
-    _halfedges[a] = b == -1 ? typemax(UInt32) : b
-    b != -1 && (_halfedges[b] = a)
+    #@show a, b
+    #_halfedges[a] = b == -1 ? typemax(UInt32) : b
+    _halfedges[a] = b
+    if b != -1 
+        _halfedges[b] = a
+    end 
 end
+
 
 
 # add a new triangle given vertex indices and adjacent half-edge ids
