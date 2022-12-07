@@ -2,16 +2,6 @@ module Delaunator
 
 using OffsetArrays
 
-const EPSILON = 2^-52 # eps()
-const EDGE_STACK = OffsetVector{UInt32}(undef,0:511)
-
-mutable struct DelaunatorData
-    _triangles::OffsetVector{UInt32}
-    _halfedges::OffsetVector{Int32}
-end
-
-
-
 function delaunator!(points)
     n = length(points)
     coords = OffsetVector{Float64}(undef, 0:(n*2))
@@ -33,19 +23,23 @@ function delaunator!(points)
     # arrays that will store the triangulation graph
     maxTriangles = max(2 * n - 5, 0)
     #@show typeof(maxTriangles),  maxTriangles
-    _triangles =  OffsetVector{UInt32}(undef,0:(maxTriangles * 3)-1)
+    _triangles =  OffsetVector{Int32}(undef,0:(maxTriangles * 3)-1)
     _halfedges = OffsetVector{Int32}(undef,0:(maxTriangles * 3)-1)
 
     # temporary arrays for tracking the edges of the advancing convex hull
     _hashSize = ceil(Int,sqrt(n))
-    hullPrev = OffsetVector{UInt32}(undef,0:n-1) # edge to prev edge
-    hullNext = OffsetVector{UInt32}(undef,0:n-1)# edge to next edge
-    hullTri = OffsetVector{UInt32}(undef,0:n-1) # edge to adjacent triangle
+    hullPrev = OffsetVector{Int32}(undef,0:n-1) # edge to prev edge
+    hullNext = OffsetVector{Int32}(undef,0:n-1)# edge to next edge
+    hullTri = OffsetVector{Int32}(undef,0:n-1) # edge to adjacent triangle
     hullHash = fill!(OffsetVector{Int32}(undef,0:n-1), -1) # angular edge hash
+    edgeStack = OffsetVector{Int32}(undef,0:511)
 
+    legalize = (t,_hullStart)->_legalize(t, _triangles, _halfedges, coords, edgeStack, hullPrev, hullTri, _hullStart)
     # temporary arrays for sorting points
-    _ids = OffsetVector{UInt32}(undef,0:n-1)
+    _ids = OffsetVector{Int32}(undef,0:n-1)
     _dists = OffsetVector{Float64}(undef,0:n-1)
+
+    
 
     #this.update()
 
@@ -127,7 +121,7 @@ function delaunator!(points)
             _dists[i] = !iszero(cxv) ? cxv : (coords[2 * i + 1] - coords[1])
         end
         quicksort(_ids, _dists, 0, n - 1)
-        hull = OffsetVector{UInt32}(undef,0:n-1)
+        hull = OffsetVector{Int32}(undef,0:n-1)
         j = 0
         d0 = -Inf
         for i = 0:n-1
@@ -139,9 +133,10 @@ function delaunator!(points)
             end
         end
         hull = resize!(hull, j+1)
-        triangles = OffsetVector{UInt32}(undef, 0:0)
-        halfedges = OffsetVector{UInt32}(undef, 0:0)
-        return hull # TODO
+        triangles = OffsetVector{Int32}(undef, 0:0)
+        halfedges = OffsetVector{Int32}(undef, 0:0)
+        return (triangles=resize!(_triangles, trianglesLen), 
+            halfedges = resize!(_halfedges, trianglesLen), hull)
     end
 
     # swap the order of the seed points for counter-clockwise orientation
@@ -195,7 +190,7 @@ function delaunator!(points)
         y = coords[2 * i + 1]
 
         # skip near-duplicate points
-        if k > 0 && abs(x - xp) <= EPSILON && abs(y - yp) <= EPSILON
+        if k > 0 && abs(x - xp) <= eps(Float64) && abs(y - yp) <= eps(Float64)
             continue
         end
         xp = x
@@ -234,7 +229,7 @@ function delaunator!(points)
         t = trianglesLen-3
 
         # recursively flip triangles from the point until they satisfy the Delaunay condition
-        hullTri[i] = _legalize(t + 2, _triangles, _halfedges, coords)
+        hullTri[i] = legalize(t + 2, _hullStart)
         hullTri[e] = t # keep track of boundary triangles on the hull
         hullSize += 1
 
@@ -244,7 +239,7 @@ function delaunator!(points)
         while orient(x, y, coords[2 * n], coords[2 * n + 1], coords[2 * q], coords[2 * q + 1])
             trianglesLen = _addTriangle(_triangles, _halfedges, trianglesLen, n, i, q, hullTri[i], -1, hullTri[n])
             t = trianglesLen-3
-            hullTri[i] = _legalize(t + 2, _triangles, _halfedges, coords)
+            hullTri[i] = legalize(t + 2, _hullStart)
             hullNext[n] = n # mark as removed
             hullSize -= 1
             n = q
@@ -257,7 +252,7 @@ function delaunator!(points)
             while orient(x, y, coords[2 * q], coords[2 * q + 1], coords[2 * e], coords[2 * e + 1])
                 trianglesLen = _addTriangle(_triangles, _halfedges, trianglesLen, q, i, e, -1, hullTri[e], hullTri[q])
                 t = trianglesLen-3
-                _legalize(t + 2, _triangles, _halfedges, coords)
+                legalize(t + 2, _hullStart)
                 hullTri[q] = t
                 hullNext[e] = e # mark as removed
                 hullSize -= 1
@@ -276,7 +271,7 @@ function delaunator!(points)
         hullHash[_hashKey(coords[2 * e], coords[2 * e + 1],_cx,_cy,_hashSize)] = e
     end
 
-    hull = OffsetVector{UInt32}(undef,0:hullSize-1)
+    hull = OffsetVector{Int32}(undef,0:hullSize-1)
     for i = 0:hullSize-1
         e = _hullStart
         hull[i] = e
@@ -284,7 +279,8 @@ function delaunator!(points)
     end
 
     # trim typed triangle mesh arrays
-    return (resize!(_triangles, trianglesLen), resize!(_halfedges, trianglesLen))
+    return (triangles=resize!(_triangles, trianglesLen), 
+        halfedges = resize!(_halfedges, trianglesLen), hull)
 end
 
 
@@ -292,7 +288,7 @@ function _hashKey(x, y, cx, cy, _hashSize)
     return floor(Int, pseudoAngle(x - cx, y - cy) * _hashSize) % _hashSize
 end
 
-function _legalize(a, triangles, halfedges, coords)
+function _legalize(a, triangles, halfedges, coords, EDGE_STACK, hullPrev, hullTri, _hullStart)
 
     i = 0
     ar = 0
@@ -355,8 +351,8 @@ function _legalize(a, triangles, halfedges, coords)
                 else
                     e = hullPrev[e]
                     while e != _hullStart
-                        if this.hullTri[e] == bl
-                            this.hullTri[e] = a
+                        if hullTri[e] == bl
+                            hullTri[e] = a
                             break
                         end
                         e = hullPrev[e]
