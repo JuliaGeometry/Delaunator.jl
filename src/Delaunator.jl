@@ -2,23 +2,22 @@ module Delaunator
 
 using OffsetArrays
 
+function getX(p)
+    p[1]
+end
+function getY(p)
+    p[2]
+end 
+
 function delaunator!(points)
     n = length(points)
-    coords = OffsetVector{Float64}(undef, 0:(n*2))
+    coords = OffsetVector{Float64}(undef, 0:(n*2)-1)
 
-    #@show n
-    #@show coords
     for i = 0:n-1
         p = points[i+1]
-        #@show p
-        coords[2 * i] = defaultGetX(p)
-        coords[2 * i + 1] = defaultGetY(p)
+        coords[2 * i] = getX(p)
+        coords[2 * i + 1] = getY(p)
     end
-    #@show "1"
-    #return new Delaunator(coords);
-
-    n = div(n,2) # coords.length >> 1
-    #if (n > 0 && typeof coords[0] !== 'number') throw new Error('Expected coords to contain numbers.')
 
     # arrays that will store the triangulation graph
     maxTriangles = max(2 * n - 5, 0)
@@ -85,7 +84,7 @@ function delaunator!(points)
     minDist = Inf
 
     # find the point closest to the seed
-    for i = 0:n-1
+    for i in 0:n-1
         i == i0 && continue
         #@show minDist
         d = dist(i0x, i0y, coords[2 * i], coords[2 * i + 1])
@@ -102,6 +101,7 @@ function delaunator!(points)
     minRadius = Inf
 
     # find the third point which forms the smallest circumcircle with the first two
+    #@show i0, i1
     for i = 1:n-1
         i == i0 || i == i1 && continue
         r = circumradius(i0x, i0y, i1x, i1y, coords[2 * i], coords[2 * i + 1])
@@ -132,11 +132,12 @@ function delaunator!(points)
                 d0 = _dists[id]
             end
         end
-        hull = resize!(hull, j+1)
+        hull = resize!(hull, j)
         triangles = OffsetVector{Int32}(undef, 0:0)
         halfedges = OffsetVector{Int32}(undef, 0:0)
-        return (triangles=resize!(_triangles, trianglesLen), 
-            halfedges = resize!(_halfedges, trianglesLen), hull)
+        @show "early return"
+        return (triangles=resize!(_triangles, 0), 
+            halfedges = resize!(_halfedges, 0), hull)
     end
 
     # swap the order of the seed points for counter-clockwise orientation
@@ -272,8 +273,8 @@ function delaunator!(points)
     end
 
     hull = OffsetVector{Int32}(undef,0:hullSize-1)
+    e = _hullStart
     for i = 0:hullSize-1
-        e = _hullStart
         hull[i] = e
         e = hullNext[e]
     end
@@ -540,13 +541,6 @@ function swap(arr, i, j)
     arr[j] = tmp
 end
 
-function defaultGetX(p)
-    return p[1]
-end
-
-function defaultGetY(p)
-    return p[2]
-end
 
 
 end # module
