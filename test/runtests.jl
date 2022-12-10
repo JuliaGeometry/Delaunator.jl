@@ -1,11 +1,10 @@
 using Delaunator
 using Test
+using JSON, GeometryBasics
 
 @show Delaunator.delaunator!([[0, 1], [1, 0], [1, 1]])
 @show Delaunator.delaunator!([[0, 1], [1, 0], [0, 0], [1, 1]])
 @show Delaunator.delaunator!([[516, 661], [369, 793], [426, 539], [273, 525], [204, 694], [747, 750], [454, 390]])
-# import {test} from 'tape';
-# import Delaunator from '../index.js';
 
 # import points from './fixtures/ukraine.json';
 # import issue13 from './fixtures/issue13.json';
@@ -70,11 +69,6 @@ using Test
 #     t.end();
 # });
 
-# test('issue #24', (t) => {
-#     validate(t, [[382, 302], [382, 328], [382, 205], [623, 175], [382, 188], [382, 284], [623, 87], [623, 341], [141, 227]]);
-#     t.end();
-# });
-
 # test('issue #43', (t) => {
 #     validate(t, issue43);
 #     t.end();
@@ -116,6 +110,14 @@ using Test
 #     t.end();
 # });
 
+@testset "empty triangulation from all-collinear" begin 
+    pts = [Point2f(0,0), Point2f(1,0), Point2f(3,0), Point2f(2,0)]
+    d = Delaunator.delaunator!(pts)
+    @test isempty(d.triangles)
+    x = Int.(d.hull)
+    @test Int.(collect(d.hull)) == [0, 1, 3, 2]
+end
+
 # test('supports custom point format', (t) => {
 #     const d = Delaunator.from(
 #         [{x: 5, y: 5}, {x: 7, y: 5}, {x: 7, y: 6}],
@@ -134,55 +136,93 @@ using Test
 #     return (orient(p, r, q) || orient(r, q, p) || orient(q, p, r)) >= 0;
 # }
 
-function validate(t, points, d = Delaunator.from(points)) {
-    # validate halfedges
-    for (let i = 0; i < d.halfedges.length; i++) {
-        const i2 = d.halfedges[i];
-        if i2 !== -1 && d.halfedges[i2] != i
-            t.fail('invalid halfedge connection');
+function orient(p, r, q)
+    px,py = p
+    rx,ry = r
+    qx,qy = q
+    l = (ry - py) * (qx - px)
+    r = (rx - px) * (qy - py);
+    return (abs(l - r) >= 3.3306690738754716e-16) * (abs(l + r) ? l - r : 0)
+end 
+
+function convex(r, q, p)
+    return (orient(p, r, q) || orient(r,q,p) || orient(q, p, r)) >= 0 
+end 
+
+function validate_halfedges(d)
+    for i in eachindex(d.halfedges)
+        i2 = d.halfedges[i]
+        if i2 != -1 && d.halfedges[i2] != i 
+            return false 
         end
-    end
-    t.pass('halfedges are valid');
+    end 
+    return true
+end 
 
-    # validate triangulation
-    const hullAreas = [];
-    for (let i = 0, len = d.hull.length, j = len - 1; i < len; j = i++) {
-        const [x0, y0] = points[d.hull[j]];
-        const [x, y] = points[d.hull[i]];
-        hullAreas.push((x - x0) * (y + y0));
-        const c = convex(points[d.hull[j]], points[d.hull[(j + 1) % d.hull.length]],  points[d.hull[(j + 3) % d.hull.length]]);
-        if (!c) t.fail(`hull is not convex at ${j}`);
-    }
-    hullArea = kahansum(hullAreas)
+function hull_area(points, d)
+    j = lastindex(d.hull)
+    hull_areas = Float64[] 
+    for i in eachindex(d.hull)
+        x0,y0 = points[d.hull[j]+1] 
+        x,y = points[d.hull[i]+1]
+        push!(hull_areas, (x - x0) * (y + y0)) # do shoelace area... 
+        j = i
+    end 
+    return kahansum(hull_areas)
+end 
 
-    const triangleAreas = [];
-    for (let i = 0; i < d.triangles.length; i += 3) {
-        const [ax, ay] = points[d.triangles[i]];
-        const [bx, by] = points[d.triangles[i + 1]];
-        const [cx, cy] = points[d.triangles[i + 2]];
-        triangleAreas.push(Math.abs((by - ay) * (cx - bx) - (bx - ax) * (cy - by)));
-    }
-    trianglesArea = sum(triangleAreas)
+function triangle_area(points, d)
+    tris = reshape(d.triangles, 3, length(d.triangles) ÷ 3)
+    triareas = map(eachcol(tris)) do tri 
+        ax,ay = points[tri[1]+1]
+        bx,by = points[tri[2]+1]
+        cx,cy = points[tri[3]+1]
+        return abs((by - ay) * (cx - bx) - (bx - ax) * (cy - by))
+    end 
+    return kahansum(triareas)
+end 
 
-    err = abs((hullArea - trianglesArea) / hullArea)
-    if err <= 2^-51
-        # t.pass(`triangulation is valid: ${err} error`);
-        return true
-    else
-        #t.fail(`triangulation is broken: ${err} error`);
-        return false
-    end
-end
 
 # Kahan and Babuska summation, Neumaier variant; accumulates less FP error
 function kahansum(x)
-    sum = x[0]
-    err = 0
-    for i = 1:length(x)-1
+    sum = 0.0
+    err = 0.0
+    for i in eachindex(x)
         k = x[i]
         m = sum + k
         err += abs(sum) >= abs(k) ? sum - m + k : k - m + sum
         sum = m
     end
     return sum + err
+end
+
+function validate_area(points, d)
+    hullarea = hull_area(points, d)
+    triarea = triangle_area(points, d)
+    @test abs(hullarea - triarea)/abs(hullarea) <= eps(Float64)
+end
+
+
+function validate(points, d)
+    @test validate_halfedges(d) == true
+    validate_area(points, d)
+end
+
+
+
+
+# test('issue #24', (t) => {
+#     validate(t, [[382, 302], [382, 328], [382, 205], [623, 175], [382, 188], [382, 284], [623, 87], [623, 341], [141, 227]]);
+#     t.end();
+# });
+
+
+@testset "simple inputs" begin
+    pts = [[0,0],[0,1],[1,0]]
+    validate(pts, Delaunator.delaunator!(pts))
+end
+
+@testset "js-delaunator issue #24" begin
+    pts = [[382, 302], [382, 328], [382, 205], [623, 175], [382, 188], [382, 284], [623, 87], [623, 341], [141, 227]]
+    validate(pts, Delaunator.delaunator!(pts))
 end
