@@ -2,9 +2,12 @@ using Delaunator
 using Test
 using JSON, GeometryBasics
 
-@show Delaunator.delaunator!([[0, 1], [1, 0], [1, 1]])
-@show Delaunator.delaunator!([[0, 1], [1, 0], [0, 0], [1, 1]])
-@show Delaunator.delaunator!([[516, 661], [369, 793], [426, 539], [273, 525], [204, 694], [747, 750], [454, 390]])
+@testset "simple inputs" begin 
+    @test sort(collect(Delaunator.delaunator!([[0, 1], [1, 0], [1, 1]]).triangles)) == [0,1,2]
+    @test Int64.(collect(Delaunator.delaunator!([[0, 1], [1, 0], [0, 0], [1, 1]]).triangles)) == [0,1,2,0,3,1]
+    Delaunator.delaunator!([[516, 661], [369, 793], [426, 539], [273, 525], [204, 694], [747, 750], [454, 390]])
+end 
+
 
 # import points from './fixtures/ukraine.json';
 # import issue13 from './fixtures/issue13.json';
@@ -13,11 +16,20 @@ using JSON, GeometryBasics
 # import robustness1 from './fixtures/robustness1.json';
 # import robustness2 from './fixtures/robustness2.json';
 
+points = map(x->Int.(x), JSON.parsefile("fixtures/ukraine.json"))
+issue13 = map(x->Float64.(x), JSON.parsefile("fixtures/issue13.json"))
+issue43 = map(x->Float64.(x), JSON.parsefile("fixtures/issue43.json"))
+issue44 = map(x->Float64.(x), JSON.parsefile("fixtures/issue44.json"))
+robustness1 = map(x->Float64.(x), JSON.parsefile("fixtures/robustness1.json"))
+robustness2 = map(x->Float64.(x), JSON.parsefile("fixtures/robustness2.json"))
+
 # test('triangulates plain array', (t) => {
 #     const d = new Delaunator([].concat(...points));
 #     t.same(d.triangles, Delaunator.from(points).triangles);
 #     t.end();
 # });
+
+
 
 # test('triangulates typed array', (t) => {
 #     const d = new Delaunator(Float64Array.from([].concat(...points)));
@@ -59,36 +71,8 @@ using JSON, GeometryBasics
 #     t.end();
 # });
 
-# test('issue #11', (t) => {
-#     validate(t, [[516, 661], [369, 793], [426, 539], [273, 525], [204, 694], [747, 750], [454, 390]]);
-#     t.end();
-# });
 
-# test('issue #13', (t) => {
-#     validate(t, issue13);
-#     t.end();
-# });
 
-# test('issue #43', (t) => {
-#     validate(t, issue43);
-#     t.end();
-# });
-
-# test('issue #44', (t) => {
-#     validate(t, issue44);
-#     t.end();
-# });
-
-# test('robustness', (t) => {
-#     validate(t, robustness1);
-#     validate(t, robustness1.map(p => [p[0] / 1e9, p[1] / 1e9]));
-#     validate(t, robustness1.map(p => [p[0] / 100, p[1] / 100]));
-#     validate(t, robustness1.map(p => [p[0] * 100, p[1] * 100]));
-#     validate(t, robustness1.map(p => [p[0] * 1e9, p[1] * 1e9]));
-#     validate(t, robustness2.slice(0, 100));
-#     validate(t, robustness2);
-#     t.end();
-# });
 
 # test('returns empty triangulation for small number of points', (t) => {
 #     let d = Delaunator.from([]);
@@ -146,7 +130,7 @@ function orient(p, r, q)
 end 
 
 function convex(r, q, p)
-    return (orient(p, r, q) || orient(r,q,p) || orient(q, p, r)) >= 0 
+    return (orient(p, r, q) || orient(r, q, p) || orient(q, p, r)) >= 0 
 end 
 
 function validate_halfedges(d)
@@ -199,7 +183,7 @@ end
 function validate_area(points, d)
     hullarea = hull_area(points, d)
     triarea = triangle_area(points, d)
-    @test abs(hullarea - triarea)/abs(hullarea) <= eps(Float64)
+    @test abs(hullarea - triarea)/abs(hullarea) <= 2*eps(Float64)
 end
 
 
@@ -208,21 +192,92 @@ function validate(points, d)
     validate_area(points, d)
 end
 
+validate(points) = validate(points, Delaunator.delaunator!(points))
+
+@testset "simple inputs" begin
+    pts = [[0,0],[0,1],[1,0]]
+    validate(pts)
+end
 
 
+
+# test('robustness', (t) => {
+#     validate(t, robustness1);
+#     validate(t, robustness1.map(p => [p[0] / 1e9, p[1] / 1e9]));
+#     validate(t, robustness1.map(p => [p[0] / 100, p[1] / 100]));
+#     validate(t, robustness1.map(p => [p[0] * 100, p[1] * 100]));
+#     validate(t, robustness1.map(p => [p[0] * 1e9, p[1] * 1e9]));
+#     validate(t, robustness2.slice(0, 100));
+#     validate(t, robustness2);
+#     t.end();
+# });
+
+@testset "js-delaunator robustness" begin
+    pts = robustness1
+    validate(pts)
+    validate(map(x->(x[1]/1e9, x[2]/1e9), pts))
+    validate(map(x->(x[1]/100, x[2]/100), pts))
+    validate(map(x->(x[1]*100, x[2]*100), pts))
+    validate(map(x->(x[1]*1e9, x[2]*1e9), pts))
+
+    pts = robustness2
+    validate(pts)
+    validate(pts[1:100])
+end
+
+
+# test('issue #11', (t) => {
+#     validate(t, [[516, 661], [369, 793], [426, 539], [273, 525], [204, 694], [747, 750], [454, 390]]);
+#     t.end();
+# });
+
+# test('issue #13', (t) => {
+#     validate(t, issue13);
+#     t.end();
+# });
 
 # test('issue #24', (t) => {
 #     validate(t, [[382, 302], [382, 328], [382, 205], [623, 175], [382, 188], [382, 284], [623, 87], [623, 341], [141, 227]]);
 #     t.end();
 # });
 
+# test('issue #43', (t) => {
+#     validate(t, issue43);
+#     t.end();
+# });
 
-@testset "simple inputs" begin
-    pts = [[0,0],[0,1],[1,0]]
-    validate(pts, Delaunator.delaunator!(pts))
-end
+# test('issue #44', (t) => {
+#     validate(t, issue44);
+#     t.end();
+# });
 
-@testset "js-delaunator issue #24" begin
-    pts = [[382, 302], [382, 328], [382, 205], [623, 175], [382, 188], [382, 284], [623, 87], [623, 341], [141, 227]]
-    validate(pts, Delaunator.delaunator!(pts))
-end
+
+
+
+@testset "js-delaunator issues" begin 
+
+    @testset "issue #21" begin
+        pts = [[516, 661], [369, 793], [426, 539], [273, 525], [204, 694], [747, 750], [454, 390]]
+        validate(pts)
+    end
+
+    @testset "issue #13" begin    
+        validate(issue13)
+    end
+
+
+    @testset "issue #24" begin
+        pts = [[382, 302], [382, 328], [382, 205], [623, 175], [382, 188], [382, 284], [623, 87], [623, 341], [141, 227]]
+        validate(pts)
+    end
+
+    @testset "issue #43" begin    
+        validate(issue44)
+    end
+
+    @testset "issue #44" begin    
+        validate(issue44)
+    end
+
+end 
+
