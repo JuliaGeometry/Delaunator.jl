@@ -6,18 +6,35 @@ end
 function getY(p)
     p[2]
 end 
+function point(::Type{FloatType}, points, i::Integer) where FloatType 
+    return FloatType(getX(points[i])), FloatType(getY(points[i]))
+end 
 
-function delaunator!(points)
-    n = length(points)
+"""
+delaunator(points)
 
-    IntType = Int32
-    FloatType = Float64
-    coords = Vector{Tuple{Float64, Float64}}(undef, n)
+"""
+#=
+delaunator(points) = delaunator(Int32, Float32, points)
 
-    for i in eachindex(points)
-        p = points[i]
-        coords[i] = (getX(p), getY(p))
-    end
+# pickup the FloatType from dists... 
+delaunator!(triangles, halfedges, hull, points) = 
+delaunator!(dists, triangles, halfedges, hull, points)
+function delaunator(::Type{IntType}, ::Type{FloatType}, points) where {IntType, FloatType}
+#    _triangles = 
+end 
+
+function delaunator!(::Type{FloatType}, triangles, halfedges, hull, points) where {FloatType}
+IntType = promote_type(eltype(triangles), eltype(halfedges), eltype(hull))
+
+end 
+=#
+
+delaunator!(coords) = delaunator!(Int32, Float64, coords)
+delaunator!(::Type{Float64}, coords) = delaunator!(Int32, FloatType, coords)
+
+function delaunator!(::Type{IntType}, ::Type{FloatType}, coords) where {IntType, FloatType}
+    n = length(coords)
 
     # arrays that will store the triangulation graph
     maxTriangles = max(2 * n - 5, 0)
@@ -35,7 +52,7 @@ function delaunator!(points)
     hullHash = fill!(Vector{IntType}(undef,n), -1) # angular edge hash
     edgeStack = Vector{IntType}(undef,500)
 
-    legalize = (t,_hullStart)->_legalize(t, _triangles, _halfedges, coords, edgeStack, hullPrev, hullTri, _hullStart)
+    legalize = (t,_hullStart)->_legalize(FloatType, t, _triangles, _halfedges, coords, edgeStack, hullPrev, hullTri, _hullStart)
     # temporary arrays for sorting points
     _ids = Vector{IntType}(undef,n)
     _dists = Vector{FloatType}(undef,n)
@@ -53,7 +70,7 @@ function delaunator!(points)
     maxY = -Inf
 
     for i in 1:n
-        x,y = coords[i]
+        x,y = point(FloatType,coords, i)
         x < minX && (minX = x)
         y < minY && (minY = y)
         x > maxX && (maxX = x)
@@ -71,7 +88,7 @@ function delaunator!(points)
 
     # pick a seed point close to the center
     for i in 1:n
-        d = dist(cx, cy, coords[i]...)
+        d = dist(cx, cy, point(FloatType,coords,i)...)
         #@show d
         if d < minDist
             i0 = i
@@ -79,7 +96,7 @@ function delaunator!(points)
             minDist = d
         end
     end
-    i0x,i0y = coords[i0]
+    i0x,i0y = point(FloatType,coords,i0)
     #@show i0x,i0y
     minDist = Inf
 
@@ -87,13 +104,13 @@ function delaunator!(points)
     for i in 1:n
         i == i0 && continue
         #@show minDist
-        d = dist(i0x, i0y, coords[i]...)
+        d = dist(i0x, i0y, point(FloatType,coords,i)...)
         if d < minDist && d > 0
             i1 = i
             minDist = d
         end
     end
-    i1x,i1y = coords[i1]
+    i1x,i1y = point(FloatType,coords,i1)
 
     #@show i1x, i1y
 
@@ -103,20 +120,20 @@ function delaunator!(points)
     #@show i0, i1
     for i in 2:n
         i == i0 || i == i1 && continue
-        r = circumradius(i0x, i0y, i1x, i1y, coords[i]...)
+        r = circumradius(i0x, i0y, i1x, i1y, point(FloatType,coords,i)...)
         if r < minRadius
             i2 = i
             minRadius = r
         end
     end
-    i2x,i2y = coords[i2]
+    i2x,i2y = point(FloatType,coords,i2)
 
     if minRadius == Inf
         # order collinear points by dx (or dy if all x are identical)
         # and return the list as a hull
         for i in eachindex(coords)
-            cxv = (coords[i][1] - coords[1][1])
-            _dists[i] = !iszero(cxv) ? cxv : (coords[i][2] - coords[1][2])
+            cxv = (point(FloatType,coords,i)[1] - point(FloatType,coords,1)[1])
+            _dists[i] = !iszero(cxv) ? cxv : (point(FloatType,coords,i)[2] - point(FloatType,coords,1)[2])
         end
         quicksort(_ids, _dists, 1, n)
         hull = Vector{IntType}(undef,n)
@@ -151,7 +168,7 @@ function delaunator!(points)
     _cx,_cy = circumcenter(i0x, i0y, i1x, i1y, i2x, i2y);
 
     for i = 1:n
-        _dists[i] = dist(coords[i]...,  _cx, _cy)
+        _dists[i] = dist(point(FloatType,coords,i)...,  _cx, _cy)
     end
 
     # sort the points by distance from the seed triangle circumcenter
@@ -180,10 +197,10 @@ function delaunator!(points)
     yp = 0.0
     for k = 1:length(_ids)
         i = _ids[k]
-        x,y = coords[i]
+        x,y = point(FloatType,coords,i)
 
         # skip near-duplicate points
-        if k > 0 && abs(x - xp) <= eps(Float64) && abs(y - yp) <= eps(Float64)
+        if k > 0 && abs(x - xp) <= eps(FloatType) && abs(y - yp) <= eps(FloatType)
             continue
         end
         xp = x
@@ -206,7 +223,7 @@ function delaunator!(points)
         start = hullPrev[start]
         e = start
         q = hullNext[e]
-        while !orient(x, y, coords[e]..., coords[q]...)
+        while !orient(x, y, point(FloatType,coords,e)..., point(FloatType,coords,q)...)
             e = q
             if e == start
                 e = -1
@@ -229,7 +246,7 @@ function delaunator!(points)
         # walk forward through the hull, adding more triangles and flipping recursively
         n = hullNext[e]
         q = hullNext[n]
-        while orient(x, y, coords[n]..., coords[q]...)
+        while orient(x, y, point(FloatType,coords,n)..., point(FloatType,coords,q)...)
             trianglesLen = _addTriangle(_triangles, _halfedges, trianglesLen, n, i, q, hullTri[i], -1, hullTri[n])
             t = trianglesLen-3
             hullTri[i] = legalize(t + 2, _hullStart)
@@ -242,7 +259,7 @@ function delaunator!(points)
         # walk backward from the other side, adding more triangles and flipping
         if e == start
             q = hullPrev[e]
-            while orient(x, y, coords[q]...,  coords[e]...)
+            while orient(x, y, point(FloatType,coords,q)...,  point(FloatType,coords,e)...)
                 trianglesLen = _addTriangle(_triangles, _halfedges, trianglesLen, q, i, e, -1, hullTri[e], hullTri[q])
                 t = trianglesLen-3
                 legalize(t + 2, _hullStart)
@@ -261,7 +278,7 @@ function delaunator!(points)
 
         # save the two new edges in the hash table
         hullHash[_hashKey(x, y,_cx,_cy,_hashSize)] = i
-        hullHash[_hashKey(coords[e]...,_cx,_cy,_hashSize)] = e
+        hullHash[_hashKey(point(FloatType,coords,e)...,_cx,_cy,_hashSize)] = e
     end
 
     hull = Vector{IntType}(undef,hullSize)
@@ -281,7 +298,7 @@ function _hashKey(x, y, cx, cy, _hashSize)
     return (floor(Int, pseudoAngle(x - cx, y - cy) * _hashSize) % _hashSize)+1
 end
 
-function _legalize(a, triangles, halfedges, coords, EDGE_STACK, hullPrev, hullTri, _hullStart)
+function _legalize(::Type{FloatType}, a, triangles, halfedges, coords, EDGE_STACK, hullPrev, hullTri, _hullStart) where {FloatType}
 
     i = 1
     ar = 0
@@ -325,10 +342,10 @@ function _legalize(a, triangles, halfedges, coords, EDGE_STACK, hullPrev, hullTr
         pl = triangles[al]
         p1 = triangles[bl]
 
-        illegal = inCircle(coords[p0]..., 
-                           coords[pr]..., 
-                           coords[pl]..., 
-                           coords[p1]...)
+        illegal = inCircle(point(FloatType,coords,p0)..., 
+                           point(FloatType,coords,pr)..., 
+                           point(FloatType,coords,pl)..., 
+                           point(FloatType,coords,p1)...)
 
         if illegal
             triangles[a] = p1
