@@ -3,8 +3,8 @@ using Test
 using JSON, GeometryBasics
 
 @testset "simple inputs" begin 
-    @test sort(collect(Delaunator.delaunator!([[0, 1], [1, 0], [1, 1]]).triangles)) == [0,1,2]
-    @test Int64.(collect(Delaunator.delaunator!([[0, 1], [1, 0], [0, 0], [1, 1]]).triangles)) == [0,1,2,0,3,1]
+    @test sort(collect(Delaunator.delaunator!([[0, 1], [1, 0], [1, 1]]).triangles)) == [1,2,3]
+    @test Int64.(collect(Delaunator.delaunator!([[0, 1], [1, 0], [0, 0], [1, 1]]).triangles)) == [1,2,3,1,4,2]
     Delaunator.delaunator!([[516, 661], [369, 793], [426, 539], [273, 525], [204, 694], [747, 750], [454, 390]])
 end 
 
@@ -99,7 +99,7 @@ robustness2 = map(x->Float64.(x), JSON.parsefile("fixtures/robustness2.json"))
     d = Delaunator.delaunator!(pts)
     @test isempty(d.triangles)
     x = Int.(d.hull)
-    @test Int.(collect(d.hull)) == [0, 1, 3, 2]
+    @test Int.(collect(d.hull)) == [1, 2, 4, 3]
 end
 
 # test('supports custom point format', (t) => {
@@ -147,8 +147,8 @@ function hull_area(points, d)
     j = lastindex(d.hull)
     hull_areas = Float64[] 
     for i in eachindex(d.hull)
-        x0,y0 = points[d.hull[j]+1] 
-        x,y = points[d.hull[i]+1]
+        x0,y0 = points[d.hull[j]] 
+        x,y = points[d.hull[i]]
         push!(hull_areas, (x - x0) * (y + y0)) # do shoelace area... 
         j = i
     end 
@@ -158,9 +158,9 @@ end
 function triangle_area(points, d)
     tris = reshape(d.triangles, 3, length(d.triangles) ÷ 3)
     triareas = map(eachcol(tris)) do tri 
-        ax,ay = points[tri[1]+1]
-        bx,by = points[tri[2]+1]
-        cx,cy = points[tri[3]+1]
+        ax,ay = points[tri[1]]
+        bx,by = points[tri[2]]
+        cx,cy = points[tri[3]]
         return abs((by - ay) * (cx - bx) - (bx - ax) * (cy - by))
     end 
     return kahansum(triareas)
