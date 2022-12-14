@@ -1,42 +1,61 @@
 module Delaunator
 
-using OffsetArrays
-
 function getX(p)
     p[1]
 end
 function getY(p)
     p[2]
 end 
+function point(::Type{FloatType}, points, i::Integer) where FloatType 
+    return FloatType(getX(points[i])), FloatType(getY(points[i]))
+end 
 
-function delaunator!(points)
-    n = length(points)
-    coords = OffsetVector{Float64}(undef, 0:(n*2)-1)
+"""
+delaunator(points)
 
-    for i = 0:n-1
-        p = points[i+1]
-        coords[2 * i] = getX(p)
-        coords[2 * i + 1] = getY(p)
-    end
+"""
+#=
+delaunator(points) = delaunator(Int32, Float32, points)
+
+# pickup the FloatType from dists... 
+delaunator!(triangles, halfedges, hull, points) = 
+delaunator!(dists, triangles, halfedges, hull, points)
+function delaunator(::Type{IntType}, ::Type{FloatType}, points) where {IntType, FloatType}
+#    _triangles = 
+end 
+
+function delaunator!(::Type{FloatType}, triangles, halfedges, hull, points) where {FloatType}
+IntType = promote_type(eltype(triangles), eltype(halfedges), eltype(hull))
+
+end 
+=#
+
+delaunator!(coords) = delaunator!(Int32, Float64, coords)
+delaunator!(::Type{Float64}, coords) = delaunator!(Int32, FloatType, coords)
+
+function delaunator!(::Type{IntType}, ::Type{FloatType}, coords) where {IntType, FloatType}
+    n = length(coords)
 
     # arrays that will store the triangulation graph
     maxTriangles = max(2 * n - 5, 0)
     #@show typeof(maxTriangles),  maxTriangles
-    _triangles =  OffsetVector{Int32}(undef,0:(maxTriangles * 3)-1)
-    _halfedges = OffsetVector{Int32}(undef,0:(maxTriangles * 3)-1)
+    #_triangles =  Vector{Tuple{IntType,IntType,IntType}}(undef,maxTriangles)
+    #_halfedges =  Vector{Tuple{IntType,IntType,IntType}}(undef,maxTriangles)
+    _triangles =  Vector{IntType}(undef,3*maxTriangles)
+    _halfedges =  fill!(Vector{IntType}(undef,3*maxTriangles),-1)
 
     # temporary arrays for tracking the edges of the advancing convex hull
     _hashSize = ceil(Int,sqrt(n))
-    hullPrev = OffsetVector{Int32}(undef,0:n-1) # edge to prev edge
-    hullNext = OffsetVector{Int32}(undef,0:n-1)# edge to next edge
-    hullTri = OffsetVector{Int32}(undef,0:n-1) # edge to adjacent triangle
-    hullHash = fill!(OffsetVector{Int32}(undef,0:n-1), -1) # angular edge hash
-    edgeStack = OffsetVector{Int32}(undef,0:511)
+    hullPrev = Vector{IntType}(undef,n) # edge to prev edge
+    hullNext = Vector{IntType}(undef,n)# edge to next edge
+    hullTri = Vector{IntType}(undef,n) # edge to adjacent triangle
+    hullHash = fill!(Vector{IntType}(undef,n), -1) # angular edge hash
+    edgeStack = Vector{IntType}(undef,500)
 
-    legalize = (t,_hullStart)->_legalize(t, _triangles, _halfedges, coords, edgeStack, hullPrev, hullTri, _hullStart)
+    legalize = (t,_hullStart)->_legalize(FloatType, t, _triangles, _halfedges, coords, edgeStack, hullPrev, hullTri, _hullStart)
     # temporary arrays for sorting points
-    _ids = OffsetVector{Int32}(undef,0:n-1)
-    _dists = OffsetVector{Float64}(undef,0:n-1)
+    _ids = Vector{IntType}(undef,n)
+    _dists = Vector{FloatType}(undef,n)
 
     
 
@@ -50,9 +69,8 @@ function delaunator!(points)
     maxX = -Inf
     maxY = -Inf
 
-    for i = 0:n-1
-        x = coords[2 * i]
-        y = coords[2 * i + 1]
+    for i in 1:n
+        x,y = point(FloatType,coords, i)
         x < minX && (minX = x)
         y < minY && (minY = y)
         x > maxX && (maxX = x)
@@ -64,13 +82,13 @@ function delaunator!(points)
     #@show cx, cy
 
     minDist = Inf
-    i0 = 0
-    i1 = 0
-    i2 = 0
+    i0 = 1
+    i1 = 1
+    i2 = 1
 
     # pick a seed point close to the center
-    for i = 0:n-1
-        d = dist(cx, cy, coords[2 * i], coords[2 * i + 1])
+    for i in 1:n
+        d = dist(cx, cy, point(FloatType,coords,i)...)
         #@show d
         if d < minDist
             i0 = i
@@ -78,23 +96,21 @@ function delaunator!(points)
             minDist = d
         end
     end
-    i0x = coords[2 * i0]
-    i0y = coords[2 * i0 + 1]
+    i0x,i0y = point(FloatType,coords,i0)
     #@show i0x,i0y
     minDist = Inf
 
     # find the point closest to the seed
-    for i in 0:n-1
+    for i in 1:n
         i == i0 && continue
         #@show minDist
-        d = dist(i0x, i0y, coords[2 * i], coords[2 * i + 1])
+        d = dist(i0x, i0y, point(FloatType,coords,i)...)
         if d < minDist && d > 0
             i1 = i
             minDist = d
         end
     end
-    i1x = coords[2 * i1]
-    i1y = coords[2 * i1 + 1]
+    i1x,i1y = point(FloatType,coords,i1)
 
     #@show i1x, i1y
 
@@ -102,29 +118,28 @@ function delaunator!(points)
 
     # find the third point which forms the smallest circumcircle with the first two
     #@show i0, i1
-    for i = 1:n-1
+    for i in 2:n
         i == i0 || i == i1 && continue
-        r = circumradius(i0x, i0y, i1x, i1y, coords[2 * i], coords[2 * i + 1])
+        r = circumradius(i0x, i0y, i1x, i1y, point(FloatType,coords,i)...)
         if r < minRadius
             i2 = i
             minRadius = r
         end
     end
-    i2x = coords[2 * i2]
-    i2y = coords[2 * i2 + 1]
+    i2x,i2y = point(FloatType,coords,i2)
 
     if minRadius == Inf
         # order collinear points by dx (or dy if all x are identical)
         # and return the list as a hull
-        for i = 0:n-1
-            cxv = (coords[2 * i] - coords[0])
-            _dists[i] = !iszero(cxv) ? cxv : (coords[2 * i + 1] - coords[1])
+        for i in eachindex(coords)
+            cxv = (point(FloatType,coords,i)[1] - point(FloatType,coords,1)[1])
+            _dists[i] = !iszero(cxv) ? cxv : (point(FloatType,coords,i)[2] - point(FloatType,coords,1)[2])
         end
-        quicksort(_ids, _dists, 0, n - 1)
-        hull = OffsetVector{Int32}(undef,0:n-1)
-        j = 0
+        quicksort(_ids, _dists, 1, n)
+        hull = Vector{IntType}(undef,n)
+        j = 1
         d0 = -Inf
-        for i = 0:n-1
+        for i in 1:n
             id = _ids[i]
             if _dists[id] > d0
                 hull[j] = id
@@ -132,10 +147,7 @@ function delaunator!(points)
                 d0 = _dists[id]
             end
         end
-        hull = resize!(hull, j)
-        triangles = OffsetVector{Int32}(undef, 0:0)
-        halfedges = OffsetVector{Int32}(undef, 0:0)
-        @show "early return"
+        hull = resize!(hull, j-1)
         return (triangles=resize!(_triangles, 0), 
             halfedges = resize!(_halfedges, 0), hull)
     end
@@ -153,16 +165,14 @@ function delaunator!(points)
         i2y = y
     end
 
-    center = circumcenter(i0x, i0y, i1x, i1y, i2x, i2y);
-    _cx = center[1]
-    _cy = center[2]
+    _cx,_cy = circumcenter(i0x, i0y, i1x, i1y, i2x, i2y);
 
-    for i = 0:n-1
-        _dists[i] = dist(coords[2 * i], coords[2 * i + 1], _cx, _cy)
+    for i = 1:n
+        _dists[i] = dist(point(FloatType,coords,i)...,  _cx, _cy)
     end
 
     # sort the points by distance from the seed triangle circumcenter
-    quicksort(_ids, _dists, 0, n - 1)
+    quicksort(_ids, _dists, 1, n)
 
     # set up the seed triangle as the starting hull
     _hullStart = i0
@@ -172,26 +182,25 @@ function delaunator!(points)
     hullNext[i1] = hullPrev[i0] = i2
     hullNext[i2] = hullPrev[i1] = i0
 
-    hullTri[i0] = 0
-    hullTri[i1] = 1
-    hullTri[i2] = 2
+    hullTri[i0] = 1
+    hullTri[i1] = 2
+    hullTri[i2] = 3
 
     fill!(hullHash,-1)
     hullHash[_hashKey(i0x, i0y,_cx,_cy,_hashSize)] = i0
     hullHash[_hashKey(i1x, i1y,_cx,_cy,_hashSize)] = i1
     hullHash[_hashKey(i2x, i2y,_cx,_cy,_hashSize)] = i2
 
-    trianglesLen = _addTriangle(_triangles, _halfedges, 0, i0, i1, i2, -1, -1, -1)
+    trianglesLen = _addTriangle(_triangles, _halfedges, 1, i0, i1, i2, -1, -1, -1)
 
     xp = 0.0
     yp = 0.0
-    for k = 0:length(_ids)-1
+    for k = 1:length(_ids)
         i = _ids[k]
-        x = coords[2 * i]
-        y = coords[2 * i + 1]
+        x,y = point(FloatType,coords,i)
 
         # skip near-duplicate points
-        if k > 0 && abs(x - xp) <= eps(Float64) && abs(y - yp) <= eps(Float64)
+        if k > 0 && abs(x - xp) <= eps(FloatType) && abs(y - yp) <= eps(FloatType)
             continue
         end
         xp = x
@@ -206,15 +215,15 @@ function delaunator!(points)
         start = 0
         key = _hashKey(x, y, _cx, _cy, _hashSize)
         #@show key
-        for j = 0:_hashSize-1
-            start = hullHash[(key + j) % _hashSize]
+        for j = 1:_hashSize
+            start = hullHash[((key + j) % _hashSize)+1]
             start != -1 && start != hullNext[start] && break
         end
 
         start = hullPrev[start]
         e = start
         q = hullNext[e]
-        while !orient(x, y, coords[2 * e], coords[2 * e + 1], coords[2 * q], coords[2 * q + 1])
+        while !orient(x, y, point(FloatType,coords,e)..., point(FloatType,coords,q)...)
             e = q
             if e == start
                 e = -1
@@ -237,7 +246,7 @@ function delaunator!(points)
         # walk forward through the hull, adding more triangles and flipping recursively
         n = hullNext[e]
         q = hullNext[n]
-        while orient(x, y, coords[2 * n], coords[2 * n + 1], coords[2 * q], coords[2 * q + 1])
+        while orient(x, y, point(FloatType,coords,n)..., point(FloatType,coords,q)...)
             trianglesLen = _addTriangle(_triangles, _halfedges, trianglesLen, n, i, q, hullTri[i], -1, hullTri[n])
             t = trianglesLen-3
             hullTri[i] = legalize(t + 2, _hullStart)
@@ -250,7 +259,7 @@ function delaunator!(points)
         # walk backward from the other side, adding more triangles and flipping
         if e == start
             q = hullPrev[e]
-            while orient(x, y, coords[2 * q], coords[2 * q + 1], coords[2 * e], coords[2 * e + 1])
+            while orient(x, y, point(FloatType,coords,q)...,  point(FloatType,coords,e)...)
                 trianglesLen = _addTriangle(_triangles, _halfedges, trianglesLen, q, i, e, -1, hullTri[e], hullTri[q])
                 t = trianglesLen-3
                 legalize(t + 2, _hullStart)
@@ -269,29 +278,29 @@ function delaunator!(points)
 
         # save the two new edges in the hash table
         hullHash[_hashKey(x, y,_cx,_cy,_hashSize)] = i
-        hullHash[_hashKey(coords[2 * e], coords[2 * e + 1],_cx,_cy,_hashSize)] = e
+        hullHash[_hashKey(point(FloatType,coords,e)...,_cx,_cy,_hashSize)] = e
     end
 
-    hull = OffsetVector{Int32}(undef,0:hullSize-1)
+    hull = Vector{IntType}(undef,hullSize)
     e = _hullStart
-    for i = 0:hullSize-1
+    for i = 1:hullSize
         hull[i] = e
         e = hullNext[e]
     end
 
     # trim typed triangle mesh arrays
-    return (triangles=resize!(_triangles, trianglesLen), 
-        halfedges = resize!(_halfedges, trianglesLen), hull)
+    return (triangles=resize!(_triangles, trianglesLen-1), 
+        halfedges = resize!(_halfedges, trianglesLen-1), hull)
 end
 
 
 function _hashKey(x, y, cx, cy, _hashSize)
-    return floor(Int, pseudoAngle(x - cx, y - cy) * _hashSize) % _hashSize
+    return (floor(Int, pseudoAngle(x - cx, y - cy) * _hashSize) % _hashSize)+1
 end
 
-function _legalize(a, triangles, halfedges, coords, EDGE_STACK, hullPrev, hullTri, _hullStart)
+function _legalize(::Type{FloatType}, a, triangles, halfedges, coords, EDGE_STACK, hullPrev, hullTri, _hullStart) where {FloatType}
 
-    i = 0
+    i = 1
     ar = 0
 
     #recursion eliminated with a fixed-size stack
@@ -313,29 +322,30 @@ function _legalize(a, triangles, halfedges, coords, EDGE_STACK, hullPrev, hullTr
          #          \||/                  \  /
          #           pr                    pr
          #
-        a0 = a - a % 3
-        ar = a0 + (a + 2) % 3
+        #a0 = a - a % 3
+        a0 = (a-1) - ((a-1)%3)+ 1 # translate to 1 based indexes
+        ar = (a0-1) + ((a-1) + 2) % 3 + 1 # translate to 1 based indexes
 
         if b == -1 #convex hull edge
-            i == 0 && break
+            i == 1 && break
             i -= 1
             a = EDGE_STACK[i]
             continue
         end
 
-        b0 = b - b % 3
-        al = a0 + (a + 1) % 3
-        bl = b0 + (b + 2) % 3
+        b0 = (b-1) - ((b-1) % 3) + 1
+        al = (a0-1) + ((a-1) + 1) % 3 + 1
+        bl = (b0-1) + ((b-1) + 2) % 3 + 1
 
         p0 = triangles[ar]
         pr = triangles[a]
         pl = triangles[al]
         p1 = triangles[bl]
 
-        illegal = inCircle(coords[2 * p0], coords[2 * p0 + 1],
-                           coords[2 * pr], coords[2 * pr + 1],
-                           coords[2 * pl], coords[2 * pl + 1],
-                           coords[2 * p1], coords[2 * p1 + 1])
+        illegal = inCircle(point(FloatType,coords,p0)..., 
+                           point(FloatType,coords,pr)..., 
+                           point(FloatType,coords,pl)..., 
+                           point(FloatType,coords,p1)...)
 
         if illegal
             triangles[a] = p1
@@ -360,11 +370,13 @@ function _legalize(a, triangles, halfedges, coords, EDGE_STACK, hullPrev, hullTr
                     end
                 end
             end
+
             _link(halfedges, a, hbl)
             _link(halfedges, b, halfedges[ar])
             _link(halfedges, ar, bl)
+            #@assert(_validate_halfedges(halfedges) == true)
 
-            br = b0 + (b + 1) % 3
+            br = (b0-1) + ((b-1) + 1) % 3 + 1
 
             # don't worry about hitting the cap: it can only happen on extremely degenerate input
             if i < length(EDGE_STACK)
@@ -372,7 +384,7 @@ function _legalize(a, triangles, halfedges, coords, EDGE_STACK, hullPrev, hullTr
                 i += 1
             end
         else
-            i == 0 && break
+            i == 1 && break
             i -= 1
             a = EDGE_STACK[i]
         end
@@ -383,7 +395,7 @@ end
 
 
 function _link(_halfedges, a, b)
-    #@show a, b
+    #println("Link: $a, $b")
     #_halfedges[a] = b == -1 ? typemax(UInt32) : b
     _halfedges[a] = b
     if b != -1 
@@ -403,6 +415,7 @@ function _addTriangle(_triangles, _halfedges, t, i0, i1, i2, a, b, c)
     _link(_halfedges, t, a)
     _link(_halfedges, t + 1, b)
     _link(_halfedges, t + 2, c)
+    #@assert(_validate_halfedges(_halfedges) == true)
 
     return t + 3
 end
@@ -541,6 +554,15 @@ function swap(arr, i, j)
     arr[j] = tmp
 end
 
-
+function _validate_halfedges(halfedges)
+    for i in eachindex(halfedges)
+        i2 = halfedges[i]
+        if i2 != -1 && halfedges[i2] != i 
+            @show halfedges
+            return false 
+        end
+    end 
+    return true
+end 
 
 end # module
