@@ -2,9 +2,27 @@ using Delaunator
 using Test
 using JSON, GeometryBasics
 
+function tsort(t::Tuple{I,I,I}) where {I<:Integer}
+    a,b,c = t
+    if a <= b <= c
+        return (a,b,c)
+    elseif a <= c <= b
+        return (a,c,b)
+    elseif b <= a <= c
+        return (b,a,c)
+    elseif b <= c <= a
+        return (b,c,a)
+    elseif c <= a <= b
+        return (c, a, b)
+    else
+        assert(c <= b <= a)
+        return (c,b,a)
+    end
+end 
+
 @testset "simple inputs" begin 
-    @test sort(collect(Delaunator.delaunator!([[0, 1], [1, 0], [1, 1]]).triangles)) == [1,2,3]
-    @test Int64.(collect(Delaunator.delaunator!([[0, 1], [1, 0], [0, 0], [1, 1]]).triangles)) == [1,2,3,1,4,2]
+    @test tsort.(Delaunator.delaunator!([[0, 1], [1, 0], [1, 1]]).triangles) == [(1,2,3)]
+    @test tsort.(Delaunator.delaunator!([[0, 1], [1, 0], [0, 0], [1, 1]]).triangles) == [(1,2,3),(1,2,4)]
     Delaunator.delaunator!([[516, 661], [369, 793], [426, 539], [273, 525], [204, 694], [747, 750], [454, 390]])
 end 
 
@@ -156,8 +174,8 @@ function hull_area(points, d)
 end 
 
 function triangle_area(points, d)
-    tris = reshape(d.triangles, 3, length(d.triangles) ÷ 3)
-    triareas = map(eachcol(tris)) do tri 
+    #tris = reshape(d.triangles, 3, length(d.triangles) ÷ 3)
+    triareas = map(d.triangles) do tri 
         ax,ay = points[tri[1]]
         bx,by = points[tri[2]]
         cx,cy = points[tri[3]]

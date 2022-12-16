@@ -9,11 +9,61 @@ end
 function point(::Type{FloatType}, points, i::Integer) where FloatType 
     return FloatType(getX(points[i])), FloatType(getY(points[i]))
 end 
+function rawpoint(points, i::Integer)
+    return getX(points[i]),getY(points[i])
+end 
 
 """
-delaunator(points)
+    delaunator([IntType=Int32,] [FloatType=Float64,] points; [tol=eps(FloatType])])
 
+Computes a Delaunay triangulation of a set of points using the Delaunator algorithm.
+This is designed for quick graphics applications and speed rather than exact computational geometry.
+
+Inputs
+------
+- `points` is any type that has integer indexing and length supported. In addition, `p = points[i]` should
+be a type where `p[1]` and `p[2]` are the x, y coordinates of p. Or you need to define the functions 
+`Delaunator.getX(p), Delaunator.getY(p)` for your own type p. 
+
+- `tol` is used to determine when points are sufficiently close not to include.     
+
+Return value
+------------
+a named tuple with fields 
+- `triangles`: a length 3T array of integers, where every consequentive group of 3 
+- `halfedges`: The halfedge index for the edge in the triangle array (TODO, explain this better)
+- `hull`: The sequence of point indexes that define the convex hull of the input points. 
+These data structures are explained at https://mapbox.github.io/delaunator/
 """
+
+struct Triangulation{IntType,PointsType}
+    triangles::Vector{IntType}
+    halfedges::Vector{IntType}
+    hull::Vector{IntType}
+    points::PointsType
+    index::Vector{IntType} 
+end 
+function circumcenters!(array, t::Triangulation)
+    FloatType = eltype(array)
+    for i in eachindex(t.triangles)
+
+    end 
+end 
+
+""" Store the first time a point occurs in halfedges into the index. """
+function index_halfedges!(index, halfedges)
+    fill!(index, 0)
+    for i in eachindex(halfedges)
+        if index[halfedges[i]] == 0 
+            index[halfedges[i]] = i 
+        end
+    end 
+end 
+
+function triangle_edges(d::Triangulation, i::Integer)
+    return (3*(i-1)+1,3*(i-1)+2,3*(i-1)+3)
+end 
+
 #=
 delaunator(points) = delaunator(Int32, Float32, points)
 
@@ -30,18 +80,21 @@ IntType = promote_type(eltype(triangles), eltype(halfedges), eltype(hull))
 end 
 =#
 
-delaunator!(coords) = delaunator!(Int32, Float64, coords)
-delaunator!(::Type{Float64}, coords) = delaunator!(Int32, FloatType, coords)
+delaunator!(coords) = delaunator!(Float64, coords)
+delaunator!(::Type{FloatType}, coords) where FloatType = delaunator!(Int32, FloatType, coords)
 
-function delaunator!(::Type{IntType}, ::Type{FloatType}, coords) where {IntType, FloatType}
+function delaunator!(::Type{IntType}, ::Type{FloatType}, coords; tol=eps(FloatType)) where {IntType, FloatType}
     n = length(coords)
 
     # arrays that will store the triangulation graph
     maxTriangles = max(2 * n - 5, 0)
     #@show typeof(maxTriangles),  maxTriangles
-    #_triangles =  Vector{Tuple{IntType,IntType,IntType}}(undef,maxTriangles)
+    _tridata =  Vector{Tuple{IntType,IntType,IntType}}(undef,maxTriangles)
     #_halfedges =  Vector{Tuple{IntType,IntType,IntType}}(undef,maxTriangles)
-    _triangles =  Vector{IntType}(undef,3*maxTriangles)
+    #_triangles =  Vector{IntType}(undef,3*maxTriangles)
+    #_triangles = reinterpret(IntType, _tridata)
+    _ptridata = Base.unsafe_convert(Ptr{IntType}, _tridata)
+    _triangles = unsafe_wrap(Array, _ptridata, 3*maxTriangles)
     _halfedges =  fill!(Vector{IntType}(undef,3*maxTriangles),-1)
 
     # temporary arrays for tracking the edges of the advancing convex hull
@@ -148,8 +201,11 @@ function delaunator!(::Type{IntType}, ::Type{FloatType}, coords) where {IntType,
             end
         end
         hull = resize!(hull, j-1)
-        return (triangles=resize!(_triangles, 0), 
+        # return (triangles=resize!(_triangles, 0), 
+        #     halfedges = resize!(_halfedges, 0), hull)
+        return (triangles=resize!(_tridata, 0), 
             halfedges = resize!(_halfedges, 0), hull)
+        
     end
 
     # swap the order of the seed points for counter-clockwise orientation
@@ -200,7 +256,7 @@ function delaunator!(::Type{IntType}, ::Type{FloatType}, coords) where {IntType,
         x,y = point(FloatType,coords,i)
 
         # skip near-duplicate points
-        if k > 0 && abs(x - xp) <= eps(FloatType) && abs(y - yp) <= eps(FloatType)
+        if k > 1 && abs(x - xp) <= tol && abs(y - yp) <= tol
             continue
         end
         xp = x
@@ -289,7 +345,9 @@ function delaunator!(::Type{IntType}, ::Type{FloatType}, coords) where {IntType,
     end
 
     # trim typed triangle mesh arrays
-    return (triangles=resize!(_triangles, trianglesLen-1), 
+    # return (triangles=resize!(_triangles, (trianglesLen-1)), # ÷ 3), 
+    #     halfedges = resize!(_halfedges, trianglesLen-1), hull)
+    return (triangles=resize!(_tridata, (trianglesLen-1) ÷ 3), 
         halfedges = resize!(_halfedges, trianglesLen-1), hull)
 end
 
@@ -498,7 +556,48 @@ function circumcenter(ax, ay, bx, by, cx, cy)
     return (x, y)
 end
 
+# function from d3-delaunay / Voronoi.js
+function circumcenter(::Type{FloatType}, t::Triangulation, i::Integer) where {FloatType}
+    tris = t.triangles
+    points = t.points
+    t1,t2,t3 = tris[i]
+    x1,y1 = point(FloatType, points, t1)
+    x2,y2 = point(FloatType, points, t2)
+    x3,y3 = point(FloatType, points, t3)
+
+    dx = x2 - x1
+    dy = y2 - y1
+    ex = x3 - x
+    ey = y3 - y1
+    ab = (dx * ey - dy * ex) * 2
+
+    if abs(ab) < 1e-9
+        # degenerate case (collinear diagram)
+        # almost equal points (degenerate triangle)
+        # the circumcenter is at the infinity, in a
+        # direction that is:
+        # 1. orthogonal to the halfedge.
+        a = FloatType(1e9)
+        # 2. points away from the center; since the list of triangles starts
+        # in the center, the first point of the first triangle
+        # will be our reference
+        r = triangles[1][1]
+        rx,ry = point(FloatType, points, r)
+        a *= sign((rx - x1) * ey - (ry - y1) * ex)
+        x = (x1 + x3) / 2 - a * ey
+        y = (y1 + y3) / 2 + a * ex
+    else
+        d = 1 / ab
+        bl = dx * dx + dy * dy
+        cl = ex * ex + ey * ey
+        x = x1 + (ey * bl - dy * cl) * d
+        y = y1 + (dx * cl - ex * bl) * d
+    end 
+    return (x,y)
+end 
+
 function quicksort(ids, dists, left, right)
+    
     if right - left <= 20
         i = i = left + 1
         while i <= right
@@ -548,7 +647,7 @@ function quicksort(ids, dists, left, right)
     end
 end
 
-function swap(arr, i, j)
+Base.@propagate_inbounds function swap(arr, i, j)
     tmp = arr[i]
     arr[i] = arr[j]
     arr[j] = tmp
