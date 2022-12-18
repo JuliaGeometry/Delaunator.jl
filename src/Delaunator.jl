@@ -25,37 +25,78 @@ Inputs
 be a type where `p[1]` and `p[2]` are the x, y coordinates of p. Or you need to define the functions 
 `Delaunator.getX(p), Delaunator.getY(p)` for your own type p. 
 
-- `tol` is used to determine when points are sufficiently close not to include.     
+- `tol` is used to determine when points are sufficiently close not to include.
 
 Return value
 ------------
 a named tuple with fields 
-- `triangles`: a length 3T array of integers, where every consequentive group of 3 
-- `halfedges`: The halfedge index for the edge in the triangle array (TODO, explain this better)
+- `triangles`: a length T array of 3 tuples, where each tuple is a triangle
+- `halfedges`: The halfedge index for the edge in the triangle array. The halfedges for 
+    triangle t are 3(t-1)+1, 3(t-1)+2, 3(t-2)+3. Each halfedge index gives the entry
+    of the other halfedge. 
 - `hull`: The sequence of point indexes that define the convex hull of the input points. 
-These data structures are explained at https://mapbox.github.io/delaunator/
+- `points` a copy of the input set of points
+- `index`: a point to halfedge/triangle index. This gives the leftmost halfedge index,
+   to make it feasible to iterate over the    
+
+These data structures are explained at https://mapbox.github.io/delaunator/ 
+(but here, all the indices have been modified a little).
 """
 
 struct Triangulation{IntType,PointsType}
-    triangles::Vector{IntType}
+    triangles::Vector{Tuple{IntType,IntType,IntType}}
     halfedges::Vector{IntType}
     hull::Vector{IntType}
     points::PointsType
     index::Vector{IntType} 
+    _triangles::Vector{IntType}
 end 
 function circumcenters!(array, t::Triangulation)
     FloatType = eltype(array)
     for i in eachindex(t.triangles)
-
+        #circumcenter()
     end 
 end 
 
+function Base.show(io::IO, t::Triangulation)
+    T = length(t.triangles)
+    N = length(t.points)
+    print(io, "$T triangles, $N points")
+  end
+  
+function Base.show(io::IO, ::MIME"text/plain", t::Triangulation)
+    println(io, t)
+    T = length(t.triangles)
+    I, J = T > 10 ? (5, T-4) : (T, T+1)
+    lines = [["  └─$(t.triangles[i])" for i in 1:I]
+             (T > 10 ? ["  ⋮"] : [])
+             ["  └─$(t.triangles[i])" for i in J:T]]
+    print(io, join(lines, "\n"))
+end
+
+""" Create the right returntype from a delaunator call. """
+function _returntype(trituples, halfedges, hull, points, index)
+    PointsType = typeof(points) 
+    IntType = eltype(halfedges)
+
+    # rewrap with a flat pointer
+    ntris = length(trituples)
+    _ptridata = Base.unsafe_convert(Ptr{IntType}, trituples)
+    _triangles = unsafe_wrap(Array, _ptridata, 3*ntris)
+
+    return Triangulation{IntType, PointsType}(trituples, halfedges, hull, points, index, _triangles)
+end 
+
 """ Store the first time a point occurs in halfedges into the index. """
-function index_halfedges!(index, halfedges)
-    fill!(index, 0)
-    for i in eachindex(halfedges)
-        if index[halfedges[i]] == 0 
-            index[halfedges[i]] = i 
+function index_halfedges!(index, halfedges, triangles; init=true)
+    if init 
+        fill!(index, 0)
+    end
+    for i in eachindex(triangles)
+        # this gives priority to exterior half-edges... 
+        endpoint = triangles[(i-1)%3 == 2 ? i-2 : i+1] # this is the next halfedge
+        if halfedges[i] == -1 || index[endpoint] == 0 
+            index[endpoint] = i 
         end
     end 
 end 
@@ -96,6 +137,7 @@ function delaunator!(::Type{IntType}, ::Type{FloatType}, coords; tol=eps(FloatTy
     _ptridata = Base.unsafe_convert(Ptr{IntType}, _tridata)
     _triangles = unsafe_wrap(Array, _ptridata, 3*maxTriangles)
     _halfedges =  fill!(Vector{IntType}(undef,3*maxTriangles),-1)
+    _edgeindex = fill!(Vector{IntType}(undef, n), 0)
 
     # temporary arrays for tracking the edges of the advancing convex hull
     _hashSize = ceil(Int,sqrt(n))
@@ -201,11 +243,11 @@ function delaunator!(::Type{IntType}, ::Type{FloatType}, coords; tol=eps(FloatTy
             end
         end
         hull = resize!(hull, j-1)
-        # return (triangles=resize!(_triangles, 0), 
-        #     halfedges = resize!(_halfedges, 0), hull)
-        return (triangles=resize!(_tridata, 0), 
-            halfedges = resize!(_halfedges, 0), hull)
         
+        return _returntype(
+                resize!(_tridata, 0), 
+                resize!(_halfedges, 0), 
+                hull, coords, _edgeindex)
     end
 
     # swap the order of the seed points for counter-clockwise orientation
@@ -347,8 +389,12 @@ function delaunator!(::Type{IntType}, ::Type{FloatType}, coords; tol=eps(FloatTy
     # trim typed triangle mesh arrays
     # return (triangles=resize!(_triangles, (trianglesLen-1)), # ÷ 3), 
     #     halfedges = resize!(_halfedges, trianglesLen-1), hull)
-    return (triangles=resize!(_tridata, (trianglesLen-1) ÷ 3), 
-        halfedges = resize!(_halfedges, trianglesLen-1), hull)
+    index_halfedges!(_edgeindex, @view(_halfedges[1:trianglesLen-1]), @view(_triangles[1:trianglesLen-1]); init=false)
+
+    return _returntype(
+                resize!(_tridata, (trianglesLen-1) ÷ 3), 
+                resize!(_halfedges, trianglesLen-1), 
+                hull, coords, _edgeindex)
 end
 
 
