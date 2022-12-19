@@ -1,17 +1,9 @@
 module Delaunator
 
-function getX(p)
-    p[1]
-end
-function getY(p)
-    p[2]
-end 
-function point(::Type{FloatType}, points, i::Integer) where FloatType 
-    return FloatType(getX(points[i])), FloatType(getY(points[i]))
-end 
-function rawpoint(points, i::Integer)
-    return getX(points[i]),getY(points[i])
-end 
+include("interface.jl")
+export triangulate, basictriangulation, update!
+
+include("clipping.jl")
 
 """
     delaunator([IntType=Int32,] [FloatType=Float64,] points; [tol=eps(FloatType])])
@@ -43,49 +35,8 @@ These data structures are explained at https://mapbox.github.io/delaunator/
 (but here, all the indices have been modified a little).
 """
 
-struct Triangulation{IntType,PointsType}
-    triangles::Vector{Tuple{IntType,IntType,IntType}}
-    halfedges::Vector{IntType}
-    hull::Vector{IntType}
-    points::PointsType
-    index::Vector{IntType} 
-    _triangles::Vector{IntType}
-end 
-function circumcenters!(array, t::Triangulation)
-    FloatType = eltype(array)
-    for i in eachindex(t.triangles)
-        #circumcenter()
-    end 
-end 
 
-function Base.show(io::IO, t::Triangulation)
-    T = length(t.triangles)
-    N = length(t.points)
-    print(io, "$T triangles, $N points")
-  end
-  
-function Base.show(io::IO, ::MIME"text/plain", t::Triangulation)
-    println(io, t)
-    T = length(t.triangles)
-    I, J = T > 10 ? (5, T-4) : (T, T+1)
-    lines = [["  └─$(t.triangles[i])" for i in 1:I]
-             (T > 10 ? ["  ⋮"] : [])
-             ["  └─$(t.triangles[i])" for i in J:T]]
-    print(io, join(lines, "\n"))
-end
 
-""" Create the right returntype from a delaunator call. """
-function _returntype(trituples, halfedges, hull, points, index)
-    PointsType = typeof(points) 
-    IntType = eltype(halfedges)
-
-    # rewrap with a flat pointer
-    ntris = length(trituples)
-    _ptridata = Base.unsafe_convert(Ptr{IntType}, trituples)
-    _triangles = unsafe_wrap(Array, _ptridata, 3*ntris)
-
-    return Triangulation{IntType, PointsType}(trituples, halfedges, hull, points, index, _triangles)
-end 
 
 """ Store the first time a point occurs in halfedges into the index. """
 function index_halfedges!(index, halfedges, triangles; init=true)
@@ -124,7 +75,7 @@ end
 delaunator!(coords) = delaunator!(Float64, coords)
 delaunator!(::Type{FloatType}, coords) where FloatType = delaunator!(Int32, FloatType, coords)
 
-function delaunator!(::Type{IntType}, ::Type{FloatType}, coords; tol=eps(FloatType)) where {IntType, FloatType}
+function delaunator!(::Type{IntType}, ::Type{FloatType}, coords; tol=eps(FloatType)) where {IntType <: Signed, FloatType}
     n = length(coords)
 
     # arrays that will store the triangulation graph
@@ -642,72 +593,11 @@ function circumcenter(::Type{FloatType}, t::Triangulation, i::Integer) where {Fl
     return (x,y)
 end 
 
-function quicksort(ids, dists, left, right)
-    
-    if right - left <= 20
-        i = i = left + 1
-        while i <= right
-            temp = ids[i]
-            tempDist = dists[temp]
-            j = i - 1
-            while j >= left && dists[ids[j]] > tempDist
-                ids[j + 1] = ids[j]
-                j -= 1
-            end
-            ids[j + 1] = temp
-            i += 1
-        end
-    else
-        median = (left + right) >> 1
-        i = left + 1
-        j = right
-        swap(ids, median, i)
-        dists[ids[left]] > dists[ids[right]] && swap(ids, left, right)
-        dists[ids[i]] > dists[ids[right]] && swap(ids, i, right)
-        dists[ids[left]] > dists[ids[i]] && swap(ids, left, i)
 
-        temp = ids[i]
-        tempDist = dists[temp]
-        while true
-            i += 1
-            while dists[ids[i]] < tempDist
-                i += 1
-            end
-            j -= 1
-            while dists[ids[j]] > tempDist
-                j -= 1
-            end
-            j < i && break
-            swap(ids, i, j)
-        end
-        ids[left + 1] = ids[j]
-        ids[j] = temp
 
-        if (right - i + 1 >= j - left)
-            quicksort(ids, dists, i, right)
-            quicksort(ids, dists, left, j - 1)
-        else
-            quicksort(ids, dists, left, j - 1)
-            quicksort(ids, dists, i, right)
-        end
-    end
-end
+include("quicksort.jl")
 
-Base.@propagate_inbounds function swap(arr, i, j)
-    tmp = arr[i]
-    arr[i] = arr[j]
-    arr[j] = tmp
-end
-
-function _validate_halfedges(halfedges)
-    for i in eachindex(halfedges)
-        i2 = halfedges[i]
-        if i2 != -1 && halfedges[i2] != i 
-            @show halfedges
-            return false 
-        end
-    end 
-    return true
-end 
+include("iterators.jl")
+export neighbors
 
 end # module
