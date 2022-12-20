@@ -1,13 +1,6 @@
 
 # code to work with the voronoi / nearest point tesselation 
 
-function circumcenters!(array, t::Triangulation)
-    FloatType = eltype(array)
-    for i in eachindex(t.triangles)
-        array[i] = circumcenter(FloatType, t, i)
-    end 
-    return array
-end 
 
 function _nextedge(i::Integer)
     (i-1)%3 == 2 ? i-2 : i+1
@@ -74,15 +67,6 @@ linesegments(collect(edgelines(rval)))
 function edgelines(t::Triangulation)
     return ((rawpoint(t.points, e[1]), rawpoint(t.points,e[2])) for e in edges(t) )
 end 
-
-"""    
-    triangles(t::Triangulation)
-
-Return the point indices for each triangle in the triangulation.     
-"""
-function triangles(t::Triangulation)
-    t.triangles
-end
 
 """
     trianglepolys(t::Triangulation)

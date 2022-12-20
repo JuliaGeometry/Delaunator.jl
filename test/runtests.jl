@@ -21,9 +21,9 @@ function tsort(t::Tuple{I,I,I}) where {I<:Integer}
 end 
 
 @testset "simple inputs" begin 
-    @test tsort.(Delaunator.delaunator!([[0, 1], [1, 0], [1, 1]]).triangles) == [(1,2,3)]
-    @test tsort.(Delaunator.delaunator!([[0, 1], [1, 0], [0, 0], [1, 1]]).triangles) == [(1,2,3),(1,2,4)]
-    Delaunator.delaunator!([[516, 661], [369, 793], [426, 539], [273, 525], [204, 694], [747, 750], [454, 390]])
+    @test tsort.(triangulate([[0, 1], [1, 0], [1, 1]]).triangles) == [(1,2,3)]
+    @test tsort.(triangulate([[0, 1], [1, 0], [0, 0], [1, 1]]).triangles) == [(1,2,3),(1,2,4)]
+    triangulate([[516, 661], [369, 793], [426, 539], [273, 525], [204, 694], [747, 750], [454, 390]])
 end 
 
 
@@ -114,7 +114,7 @@ robustness2 = map(x->Float64.(x), JSON.parsefile("fixtures/robustness2.json"))
 
 @testset "empty triangulation from all-collinear" begin 
     pts = [Point2f(0,0), Point2f(1,0), Point2f(3,0), Point2f(2,0)]
-    d = Delaunator.delaunator!(pts)
+    d = triangulate(pts)
     @test isempty(d.triangles)
     x = Int.(d.hull)
     @test Int.(collect(d.hull)) == [1, 2, 4, 3]
@@ -210,7 +210,7 @@ function validate(points, d)
     validate_area(points, d)
 end
 
-validate(points) = validate(points, Delaunator.delaunator!(points))
+validate(points) = validate(points, triangulate(points))
 
 @testset "simple inputs" begin
     pts = [[0,0],[0,1],[1,0]]
