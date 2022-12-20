@@ -6,7 +6,7 @@ function _get_bounds(::Type{FloatType}, points) where FloatType
     maxY = -Inf
 
     for i in eachindex(points)
-        x,y = point(FloatType,coords, i)
+        x,y = point(FloatType,points, i)
         x < minX && (minX = x)
         y < minY && (minY = y)
         x > maxX && (maxX = x)
@@ -16,8 +16,9 @@ function _get_bounds(::Type{FloatType}, points) where FloatType
     return (minX,minY),(maxX,maxY)
 end 
 
-function _get_seeds(points, c::Tuple)
+function _find_seeds(points, c::Tuple)
     FloatType = eltype(c)
+    n = length(points)
 
     cx, cy = getX(c), getY(c)
 
@@ -25,39 +26,39 @@ function _get_seeds(points, c::Tuple)
     i0 = 1
     i1 = 1
     i2 = 1
+    
 
     # pick a seed point close to the center
     for i in 1:n
-        d = dist(cx, cy, point(FloatType,coords,i)...)
+        d = dist(cx, cy, point(FloatType,points,i)...)
         if d < minDist
             i0 = i
             minDist = d
         end
     end
-    i0x,i0y = point(FloatType,coords,i0)
+    i0x,i0y = point(FloatType,points,i0)
     minDist = Inf
 
     # find the point closest to the seed
     for i in 1:n
         i == i0 && continue
-        d = dist(i0x, i0y, point(FloatType,coords,i)...)
+        d = dist(i0x, i0y, point(FloatType,points,i)...)
         if d < minDist && d > 0
             i1 = i
             minDist = d
         end
     end
-    i1x,i1y = point(FloatType,coords,i1)
+    i1x,i1y = point(FloatType,points,i1)
 
     minRadius = Inf
     for i in 2:n
         i == i0 || i == i1 && continue
-        r = circumradius(i0x, i0y, i1x, i1y, point(FloatType,coords,i)...)
+        r = circumradius(i0x, i0y, i1x, i1y, point(FloatType,points,i)...)
         if r < minRadius
             i2 = i
             minRadius = r
         end
     end
-    i2x,i2y = point(FloatType,coords,i2)
 
     return minRadius == Inf, i0, i1, i2
 end 
@@ -77,7 +78,8 @@ function _delaunator!(
     _dists,
     tol
 )
-    FloatType = eltype(_ids)
+    FloatType = eltype(_dists)
+    n = length(coords)
     legalize = (t,_hullStart)->_legalize(FloatType, t, _triangles, _halfedges, coords, edgeStack, hullPrev, hullTri, _hullStart)
 
     i0, i1, i2 = seeds

@@ -59,7 +59,7 @@ end
 function _triangulation(triangles, halfedges, points, 
             minxy, maxxy, hull, index, circumcenters, rays)
     IntType = eltype(halfedges)
-    FloatType = eltype(_minxy)
+    FloatType = eltype(minxy)
     PointsType = typeof(points)
     ntris = length(triangles)
     _ptridata = Base.unsafe_convert(Ptr{IntType}, triangles)
@@ -108,8 +108,8 @@ end
 
 function Base.show(io::IO, t::AbstractDelaunatorData)
     T = length(triangles(t))
-    N = length(points(t))
-    print(io, "$T triangles ($(inttype(t)), $(floattype(t))), $N points")
+    N = length(t.points)
+    print(io, "$N points [($(t._minxy[1]),$(t._minxy[2])) - ($(t._maxxy[1]),$(t._maxxy[2]))] $T triangles ($(inttype(t)), $(floattype(t))), ")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", t::AbstractDelaunatorData)
@@ -184,7 +184,7 @@ function basictriangulation(::Type{IntType}, ::Type{FloatType}, points;
     halfedges =  Vector{IntType}(undef,3*maxTriangles)
 
     cdata = _allocate_cdata(IntType, FloatType,npts)
-    bt = _basictriangulation(tridatay, halfedges, points, 
+    bt = _basictriangulation(tridata, halfedges, points, 
             (zero(FloatType),zero(FloatType)), (one(FloatType),one(FloatType)))
     return bt, cdata 
 end 
@@ -200,7 +200,7 @@ function update!(points, bt::BasicTriangulation, cdata::TriangulationTemporaries
     IntType = inttype(bt)
     FloatType = floattype(bt) 
     n = length(points)
-    maxTriangles = max(2 * npts - 5, 0)
+    maxTriangles = max(2 * n - 5, 0)
     # extract the arrays and check their size...
 
     minsize(v,n) = length(v) <= n ? v : resize!(v, n) 
@@ -210,7 +210,7 @@ function update!(points, bt::BasicTriangulation, cdata::TriangulationTemporaries
     triangles = unsafe_wrap(Array, _ptridata, 3*maxTriangles)
 
     halfedges = minsize(bt.halfedges, 3*maxTriangles)
-    fill!(@view(_halfedges[1:3*maxTriangles]), -1)
+    fill!(@view(halfedges[1:3*maxTriangles]), -1)
 
     # temporary arrays for tracking the edges of the advancing convex hull
     hashSize = ceil(Int,sqrt(n))
@@ -235,11 +235,11 @@ function update!(points, bt::BasicTriangulation, cdata::TriangulationTemporaries
     if collinear
         # order collinear points by dx (or dy if all x are identical)
         # and return the list as a hull
-        for i in eachindex(coords)
-            cxv = (point(FloatType,coords,i)[1] - point(FloatType,coords,1)[1])
-            _dists[i] = !iszero(cxv) ? cxv : (point(FloatType,coords,i)[2] - point(FloatType,coords,1)[2])
+        for i in eachindex(points)
+            cxv = (point(FloatType,points,i)[1] - point(FloatType,points,1)[1])
+            dists[i] = !iszero(cxv) ? cxv : (point(FloatType,points,i)[2] - point(FloatType,points,1)[2])
         end
-        quicksort(_ids, _dists, 1, n)
+        quicksort(ids, dists, 1, n)
         resize!(tridata, 0)
         resize!(halfedges, 0)
         hullStart = 1 
@@ -298,23 +298,23 @@ function hullvertices!(hull, bt::BasicTriangulation, cdata::TriangulationTempora
         # from the first point. We want to add 
         # any point that isn't a duplicate.. 
         _dists = cdata.dists
+        _ids = cdata.ids
         d0 = -Inf
         for i in 1:n
             id = _ids[i]
             if _dists[id] > d0 # if we have strictly large distance 
                 push!(hull, id) 
-                hull[j] = id
-                j += 1
                 d0 = _dists[id]
             end
         end
-        hull = resize!(hull, j-1)
+        #hull = resize!(hull, j-1)
     else 
+        hullNext = cdata.hullNext
         e = cdata.edgeStack[1] # hull start is edgeStack[1] 
         hullSize = cdata.edgeStack[2] # hull Size is edgeStack[2] 
         for i = 1:hullSize
             push!(hull, e)
-            hull[i] = e
+            #hull[i] = e
             e = hullNext[e]
         end
     end 
@@ -362,8 +362,14 @@ function circumcenters!(array, t::AbstractDelaunatorData;
     collineartol=_max_dimension(t)/sqrt(eps(eltype(array))))
     points = t.points
     tris = triangles(t) 
-    FloatType = eltype(array)
-    rx,ry = point(FloatType, points, tris[1][1])
+    FloatType = eltype(eltype(array))
+    rx,ry = begin 
+        if length(tris) > 0 
+            return point(FloatType, points, tris[1][1]) 
+        else
+            return zero(FloatType), zero(FloatType)
+        end
+    end
     for i in eachindex(tris)
         t1,t2,t3 = tris[i]
         x1,y1 = point(FloatType, points, t1)
@@ -378,8 +384,8 @@ end
     triangulate([Int32,] [FloatType=Float64,] points; [tol=eps(FloatType),] 
         [rcollineartol=sqrt(eps(FloatType))])
 """
-triangulate(points; kwargs...) = delaunator!(Float64, points; kwargs... )
-triangulate(::Type{FloatType}, points) where FloatType = triangulate(Int32, FloatType, points; kwargs...)
+triangulate(points; kwargs...) = triangulate(Float64, points; kwargs... )
+triangulate(::Type{FloatType}, points; kwargs...) where FloatType = triangulate(Int32, FloatType, points; kwargs...)
 function triangulate(::Type{IntType}, ::Type{FloatType}, 
             points; tol=eps(FloatType), rcollineartol=sqrt(eps(FloatType))
             ) where {IntType <: Signed, FloatType}
@@ -391,8 +397,8 @@ function triangulate(::Type{IntType}, ::Type{FloatType},
     index = index_halfedges!(Vector{IntType}(undef, n), bt.halfedges, bt._triangles)
     ntris = length(bt.triangles)
     ccs = Vector{Tuple{FloatType,FloatType}}(undef, ntris)
-    collinearthresh=_max_dimension(t)*collineartol
-    circumcenters!(ccs, bt; collinearthresh)
+    collineartol = _max_dimension(bt)*rcollineartol
+    circumcenters!(ccs, bt; collineartol)
     # TODO fix the rays 
     rays = Vector{Tuple{FloatType,FloatType}}(undef, 0) 
     _triangulation(triangles(bt), bt.halfedges, points, 
