@@ -203,7 +203,7 @@ function update!(points, bt::BasicTriangulation, cdata::TriangulationTemporaries
     maxTriangles = max(2 * n - 5, 0)
     # extract the arrays and check their size...
 
-    minsize(v,n) = length(v) <= n ? v : resize!(v, n) 
+    minsize(v,n) = length(v) >= n ? v : resize!(v, n) 
 
     tridata = minsize(bt.triangles, maxTriangles)
     _ptridata = Base.unsafe_convert(Ptr{IntType}, tridata)

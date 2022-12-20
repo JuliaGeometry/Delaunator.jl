@@ -75,10 +75,10 @@ function _delaunator!(
     _hashSize::Integer,
     edgeStack,
     _ids, 
-    _dists,
+    _dists::AbstractVector{FloatType},
     tol
-)
-    FloatType = eltype(_dists)
+) where {FloatType}
+    #FloatType = eltype(_dists)
     n = length(coords)
     legalize = (t,_hullStart)->_legalize(FloatType, t, _triangles, _halfedges, coords, edgeStack, hullPrev, hullTri, _hullStart)
 
@@ -130,7 +130,7 @@ function _delaunator!(
 
     xp = 0.0
     yp = 0.0
-    for k = 1:length(_ids)
+    for k = 1:n
         i = _ids[k]
         x,y = point(FloatType,coords,i)
 

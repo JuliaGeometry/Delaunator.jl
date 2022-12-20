@@ -55,7 +55,7 @@ Base.@propagate_inbounds function swap(arr, i, j)
     arr[j] = tmp
 end
 
-function quicksort(ids, dists, left, right, parallel=true)
+function parallelquicksort(ids, dists, left, right, parallel=true)
     if right-left <= 1 <<  9 
         parallel = false 
     end 
