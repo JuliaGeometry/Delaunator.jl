@@ -1,7 +1,7 @@
 module Delaunator
 
 include("interface.jl")
-export triangulate, basictriangulation, update!, triangles
+export triangulate, basictriangulation, update!, triangles, points, inhull
 
 include("quicksort.jl")
 include("geometry.jl")
@@ -9,7 +9,7 @@ include("geometry.jl")
 include("algorithm.jl") # nothing is exported here... 
 
 include("iterators.jl")
-export neighbors, edges, edgelines
+export neighbors, edges, edgelines, hullpoly
 
 #include("clipping.jl")
 

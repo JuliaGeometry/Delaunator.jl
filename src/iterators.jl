@@ -34,6 +34,9 @@ function Base.iterate(it::PointNeighborIterator, state=nothing)
     end 
 end
 
+function triangle_from_index(t::Triangulation, i::Integer)
+    return ((i-1) ÷ 3)+1 
+end
 
 function edge_from_index(t::Triangulation, i::Integer)
     ti, vi = divrem(i-1, 3)
@@ -49,6 +52,31 @@ end
 
 function edges(t::Triangulation)
     return ((i,j) for i in 1:length(t.points) for j in neighbors(t,i) if (i<j))
+end 
+
+"""
+    triangles(t, i)
+
+Given a Triangulation and a point index `i`, return an iterator
+over the indices of triangles that include point i. These are returned
+in counter-clockwise order. 
+TODO Make this an iterator... (right now, it's just an array...)
+"""
+function triangles(t::Triangulation, i::Integer)
+    rval = inttype(t)[] 
+    start = t.index[i]
+    state = nothing
+    while state != start && state != -1 
+        if state === nothing
+            state = start
+        end 
+        outgoing = _nextedge(state)
+        incoming = t.halfedges[outgoing]
+        nextstate = incoming 
+        push!(rval, triangle_from_index(t, state))
+        state = nextstate 
+    end 
+    return rval
 end 
 
 """
@@ -68,10 +96,25 @@ function edgelines(t::Triangulation)
     return ((rawpoint(t.points, e[1]), rawpoint(t.points,e[2])) for e in edges(t) )
 end 
 
-"""
-    trianglepolys(t::Triangulation)
+function hull(t::Triangulation)
+    return t.hull
+end 
 
-Return the coordinates     
 """
-# towrite
+    hullpoly(t)
+
+Return the coordinates of the convex hull suitable for plotting as a polygon. 
+
+# Example
+```julia-repl
+julia> t = triangulate(rand(StableRNG(1), Point2f, 10))
+julia> f = scatter(t.points)
+julia> poly!(f.axis,collect(hullpoly(rval)),color=:transparent, strokewidth=1)
+julia> f
+```
+"""
+function hullpoly(t::Triangulation)
+    return (rawpoint(t.points, p) for p in hull(t))
+end 
+
 

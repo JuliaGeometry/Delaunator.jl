@@ -51,13 +51,16 @@ struct Triangulation{IntType,FloatType,PointsType} <: AbstractDelaunatorData
     _minxy::Tuple{FloatType,FloatType}
     _maxxy::Tuple{FloatType,FloatType}
     hull::Vector{IntType}
+    hullindex::Vector{IntType}
     index::Vector{IntType} 
     circumcenters::Vector{Tuple{FloatType,FloatType}}
-    rays::Vector{Vector{Tuple{FloatType,FloatType}}}
+    raystart::Vector{Tuple{FloatType,FloatType}}
+    rayend::Vector{Tuple{FloatType,FloatType}}
 end 
 
 function _triangulation(triangles, halfedges, points, 
-            minxy, maxxy, hull, index, circumcenters, rays)
+            minxy, maxxy, hull, hullindex, index, circumcenters, 
+            raystart, rayend)
     IntType = eltype(halfedges)
     FloatType = eltype(minxy)
     PointsType = typeof(points)
@@ -65,7 +68,8 @@ function _triangulation(triangles, halfedges, points,
     _ptridata = Base.unsafe_convert(Ptr{IntType}, triangles)
     _triangles = unsafe_wrap(Array, _ptridata, 3*ntris)
     return Triangulation{IntType,FloatType,PointsType}(triangles, halfedges,
-        points, _triangles, minxy, maxxy, hull, index, circumcenters, rays)
+        points, _triangles, minxy, maxxy, hull, hullindex, index, circumcenters, 
+        raystart, rayend)
 end             
 
 """    
@@ -77,7 +81,36 @@ function triangles(t::AbstractDelaunatorData)
     t.triangles
 end
 
+"""    
+    points(t::AbstractDelaunatorData)
+
+Return the point coordinates that were given as input to the algorithm. 
+Note that changing these does not dynamically change the triangulation. 
 """
+function points(t::AbstractDelaunatorData)
+    t.points
+end
+
+import Base.eachindex 
+"""    
+    eachindex(t::AbstractDelaunatorData)
+
+Return the indicies of each point in the dataset.
+"""
+function eachindex(t::AbstractDelaunatorData)
+    1:length(points(t))
+end
+
+"""
+    inhull(t::Triangulation, i::Integer)
+
+Return the index of the vertex in the hull if it's in the hull, or zero if the vertex is not in the hull. 
+"""
+function inhull(t::Triangulation, i::Integer)
+    return t.hullindex[i]
+end 
+
+"""    
     minpt, maxpt = bounds(t::AbstractDelaunatorData)
 
 Return the coordinate bounds on the points. All of the points (as of the computation of the algorithm)
@@ -371,11 +404,12 @@ function circumcenters!(array, t::AbstractDelaunatorData;
     FloatType = eltype(eltype(array))
     rx,ry = begin 
         if length(tris) > 0 
-            return point(FloatType, points, tris[1][1]) 
+            point(FloatType, points, tris[1][1]) 
         else
-            return zero(FloatType), zero(FloatType)
+            zero(FloatType), zero(FloatType)
         end
     end
+    
     for i in eachindex(tris)
         t1,t2,t3 = tris[i]
         x1,y1 = point(FloatType, points, t1)
@@ -385,6 +419,56 @@ function circumcenters!(array, t::AbstractDelaunatorData;
     end 
     return array
 end 
+
+"""
+    raystart, rayend = rays(t)
+
+This returns arrays that are indexed by the _index of_ a point on the convex hull.
+So to get the infinite rays associated with the nearest point cell use:
+```
+function rays_for_point(t)
+    rs, re = rays(t) # only need to compute this one 
+    hullindex = inhull(t, i)
+    if hullindex > 0 
+        return rs[hullindex],re[hullindex]
+    else
+        return 
+    end 
+end 
+```    
+"""
+
+function rays(::Type{FloatType}, hull, points) where FloatType
+    #d3-delaunay/Voronoi.js code 
+    #=
+    let h = hull[hull.length - 1];
+      let p0, p1 = h * 4;
+      let x0, x1 = points[2 * h];
+      let y0, y1 = points[2 * h + 1];
+      vectors.fill(0);
+      for (let i = 0; i < hull.length; ++i) {
+        h = hull[i];
+        p0 = p1, x0 = x1, y0 = y1;
+        p1 = h * 4, x1 = points[2 * h], y1 = points[2 * h + 1];
+        vectors[p0 + 2] = vectors[p1] = y0 - y1;
+        vectors[p0 + 3] = vectors[p1 + 1] = x1 - x0;
+      }
+    =#
+    nhull = length(hull) 
+    raystart = Vector{Tuple{FloatType,FloatType}}(undef, nhull)
+    rayend = Vector{Tuple{FloatType,FloatType}}(undef, nhull)
+    p1 = hull[end]
+    hi1 = nhull # index of last point 
+    x1,y1 = points[p1] # last point in the hull 
+    for (hi,h) in enumerate(hull)  # walk through the hull in order now..
+        hi0,x0,y0 = hi1,x1,y1
+        hi1 = hi  
+        x1,y1 = points[h]
+        # this is the outward orthogonal direction to the line on the hull. 
+        rayend[hi0] = raystart[hi1] = (y0 - y1, x1 - x0) 
+    end 
+    return raystart, rayend 
+  end 
 
 """
     triangulate([Int32,] [FloatType=Float64,] points; [tol=eps(FloatType),] 
@@ -398,15 +482,25 @@ function triangulate(::Type{IntType}, ::Type{FloatType},
     n = length(points) 
     bt, cdata = basictriangulation(IntType, FloatType, points)
     bt, cdata = update!(points, bt, cdata; tol)
+
     hull = Vector{IntType}()
     hullvertices!(hull, bt, cdata)
+    hullindex = fill!(Vector{IntType}(undef, n), 0)
+    for (i,h) in enumerate(hull)
+        hullindex[h] = i
+    end 
+
     index = index_halfedges!(Vector{IntType}(undef, n), bt.halfedges, bt._triangles)
+
     ntris = length(bt.triangles)
     ccs = Vector{Tuple{FloatType,FloatType}}(undef, ntris)
     collineartol = _max_dimension(bt)*rcollineartol
     circumcenters!(ccs, bt; collineartol)
-    # TODO fix the rays 
-    rays = Vector{Tuple{FloatType,FloatType}}(undef, 0) 
+
+    raystart,rayend = rays(FloatType, hull, points) 
+    
     _triangulation(triangles(bt), bt.halfedges, points, 
-        bt._minxy, bt._maxxy, hull, index, ccs, rays)
+        bt._minxy, bt._maxxy, hull, hullindex, index, ccs, raystart, rayend)
 end 
+
+

@@ -83,11 +83,9 @@ end
 For a nearly collinear triangle, then the circumcenter can be
 off at a point near infinity. Since the goal of this library
 is not computational geometry, a pragmatic choice is to truncate
-these wildly divergent near infinite 
-This function truncates circumcenter that are at extreme.
-    The current scaling makes sense for pixels. A more
-    general scaling would be 
-# function from d3-delaunay / Voronoi.js
+these wildly divergent near infinite circumcenters. 
+
+function from d3-delaunay / Voronoi.js
 """
 function truncatedcircumcenter(x1::FloatType, y1::FloatType, 
         x2::FloatType, y2::FloatType, 
