@@ -26,7 +26,6 @@ function _find_seeds(points, c::Tuple)
     i0 = 1
     i1 = 1
     i2 = 1
-    
 
     # pick a seed point close to the center
     for i in 1:n

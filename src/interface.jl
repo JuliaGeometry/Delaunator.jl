@@ -39,7 +39,7 @@ end
 function Base.show(io::IO, t::BasicTriangulation)
     T = length(t.triangles)
     N = length(t.points)
-    print(io, "$T triangles, $N points")
+    print(io, "BasicTriangulation: ($T triangles, $N points)")
 end
 
 struct Triangulation{IntType,FloatType,PointsType} <: AbstractDelaunatorData
@@ -109,7 +109,7 @@ end
 function Base.show(io::IO, t::AbstractDelaunatorData)
     T = length(triangles(t))
     N = length(t.points)
-    print(io, "$N points [($(t._minxy[1]),$(t._minxy[2])) - ($(t._maxxy[1]),$(t._maxxy[2]))] $T triangles ($(inttype(t)), $(floattype(t))), ")
+    print(io, "$N-point triangulation [($(t._minxy[1]),$(t._minxy[2])) - ($(t._maxxy[1]),$(t._maxxy[2]))] $T triangles ($(inttype(t)), $(floattype(t))), ")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", t::AbstractDelaunatorData)
@@ -134,6 +134,12 @@ struct TriangulationTemporaries{IntType,FloatType}
     ids::Vector{IntType}
     dists::Vector{FloatType}
 end 
+
+function Base.show(io::IO, t::TriangulationTemporaries)
+    n = length(t.hullPrev) 
+    print(io, "TriangulationTemporaries ($(eltype(t.hullPrev)), $(eltype(t.dists))) for $n points")
+end
+
 
 """ Create a wrapper to simplify type management. """ 
 function _temporaries(hullStart, hullSize, hullPrev, hullNext, hullTri, hullHash, edgeStack, ids, dists)
