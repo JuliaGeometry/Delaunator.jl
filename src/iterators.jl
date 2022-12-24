@@ -1,7 +1,6 @@
 
 # code to work with the voronoi / nearest point tesselation 
 
-
 function _nextedge(i::Integer)
     (i-1)%3 == 2 ? i-2 : i+1
   end 
@@ -54,30 +53,6 @@ function edges(t::Triangulation)
     return ((i,j) for i in 1:length(t.points) for j in neighbors(t,i) if (i<j))
 end 
 
-"""
-    triangles(t, i)
-
-Given a Triangulation and a point index `i`, return an iterator
-over the indices of triangles that include point i. These are returned
-in counter-clockwise order. 
-TODO Make this an iterator... (right now, it's just an array...)
-"""
-function triangles(t::Triangulation, i::Integer)
-    rval = inttype(t)[] 
-    start = t.index[i]
-    state = nothing
-    while state != start && state != -1 
-        if state === nothing
-            state = start
-        end 
-        outgoing = _nextedge(state)
-        incoming = t.halfedges[outgoing]
-        nextstate = incoming 
-        push!(rval, triangle_from_index(t, state))
-        state = nextstate 
-    end 
-    return rval
-end 
 
 """
     edgelines(t::Triangulation)
@@ -109,7 +84,7 @@ Return the coordinates of the convex hull suitable for plotting as a polygon.
 ```julia-repl
 julia> t = triangulate(rand(StableRNG(1), Point2f, 10))
 julia> f = scatter(t.points)
-julia> poly!(f.axis,collect(hullpoly(rval)),color=:transparent, strokewidth=1)
+julia> poly!(f.axis,collect(hullpoly(t)),color=:transparent, strokewidth=1)
 julia> f
 ```
 """
@@ -117,4 +92,56 @@ function hullpoly(t::Triangulation)
     return (rawpoint(t.points, p) for p in hull(t))
 end 
 
+# TODO 
+# In an ideal world, this would share lots of code
+# with PointNeighborIterator, but ... alas.
 
+import Base.iterate, Base.eltype, Base.IteratorSize
+struct TriangleNeighborIterator{TriType,IntType}
+    t::TriType
+    start::IntType
+end
+#Base.IteratorSize(::Type{PointNeighborIterator{TriType,IntType}}) where {TriType,IntType} = Base.SizeUnknown()
+Base.eltype(::Type{TriangleNeighborIterator{TriType,IntType}}) where {TriType,IntType} = IntType
+Base.isdone(it::TriangleNeighborIterator, state) = state == it.start || state == -1
+function Base.iterate(it::TriangleNeighborIterator, state=nothing) 
+    # we are done if state == it.start again, after the first iteration
+    if state == it.start || state == -1
+        return nothing
+    else
+        if state === nothing 
+            state = it.start
+        end 
+        outgoing = _nextedge(state)
+        incoming = it.t.halfedges[outgoing]
+        nextstate = incoming 
+        return (triangle_from_index(it.t, state), nextstate)
+    end 
+end
+
+function Base.length(it::TriangleNeighborIterator) 
+    len = 1 
+    start = it.start 
+    halfedges = it.t.halfedges 
+    state = start
+    outgoing = _nextedge(state)
+    state = halfedges[outgoing]
+    while (state != -1 && state != start)
+        outgoing = _nextedge(state)
+        state = halfedges[outgoing]
+        len += 1
+    end 
+    return len 
+end 
+
+
+"""
+    triangles(t, i)
+
+Given a Triangulation and a point index `i`, return an iterator
+over the indices of triangles that include point i. These are returned
+in counter-clockwise order. 
+"""
+function triangles(t::Triangulation, i::Integer)
+    return TriangleNeighborIterator{typeof(t),inttype(t)}(t, t.index[i])
+end 

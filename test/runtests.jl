@@ -26,20 +26,14 @@ end
     triangulate([[516, 661], [369, 793], [426, 539], [273, 525], [204, 694], [747, 750], [454, 390]])
 end 
 
-
-# import points from './fixtures/ukraine.json';
-# import issue13 from './fixtures/issue13.json';
-# import issue43 from './fixtures/issue43.json';
-# import issue44 from './fixtures/issue44.json';
-# import robustness1 from './fixtures/robustness1.json';
-# import robustness2 from './fixtures/robustness2.json';
-
 points = map(x->Int.(x), JSON.parsefile("fixtures/ukraine.json"))
 issue13 = map(x->Float64.(x), JSON.parsefile("fixtures/issue13.json"))
 issue43 = map(x->Float64.(x), JSON.parsefile("fixtures/issue43.json"))
 issue44 = map(x->Float64.(x), JSON.parsefile("fixtures/issue44.json"))
 robustness1 = map(x->Float64.(x), JSON.parsefile("fixtures/robustness1.json"))
 robustness2 = map(x->Float64.(x), JSON.parsefile("fixtures/robustness2.json"))
+
+include("iterators.jl")
 
 # test('triangulates plain array', (t) => {
 #     const d = new Delaunator([].concat(...points));
