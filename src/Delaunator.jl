@@ -5,6 +5,7 @@ export triangulate, basictriangulation, update!, triangles, points, inhull
 
 include("quicksort.jl")
 include("geometry.jl")
+export isinfinite, dualcell, firstpoint, lastpoint
 
 include("algorithm.jl") # nothing is exported here... 
 

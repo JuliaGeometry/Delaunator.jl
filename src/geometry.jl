@@ -1,4 +1,199 @@
 
+
+"""
+    InfinitePolygon
+
+fields
+"""    
+struct InfinitePolygon{ArrayType,ElType}
+    points::ArrayType
+    head::Tuple{ElType,ElType}
+    tail::Tuple{ElType,ElType}
+end
+
+function Base.show(io::IO, p::InfinitePolygon)
+    N = length(p.points)
+    extrastr = isinfinite(p) ? " with incoming ray $(p.head) and outgoing ray $(p.tail)" : ""
+    print(io, "$N-point polygon $extrastr")
+end
+
+"""
+    infinitepoly(pts, head, tail) 
+
+Create a possibly unbounded polygon. The points should be listed in
+counter-clockwise order. The head is the incoming halfray, the
+tail is the departing halfray. These can be set to zero to 
+create a finite polygon which is just a connected set of points.
+Infinite polygons arise in the dual of a trianglation for those
+edges on the convex hull.
+
+p = infinitepoly(pts, head, tail)
+isfinite(p) # return true if head/tail are both zero
+"""
+
+function infinitepoly(pts, head, tail)
+    ElType = eltype(head)
+    ArrayType = typeof(pts)
+    return InfinitePolygon{ArrayType, ElType}(pts, head, tail)
+end 
+
+
+
+"""
+    isfinite(poly)
+    isinfinite(poly)
+
+Test if the polygon is infinite or finite. 
+"""
+:isfinite, :isinfinite 
+
+import Base.isfinite 
+function isfinite(poly)
+    if poly.head == (0,0) && poly.tail == (0,0)
+        return true
+    else
+        # TODO, check if the head/tail rays intersect... 
+        return false 
+    end 
+end
+
+isinfinite(poly) = !isfinite(poly)
+
+firstpoint(poly) = first(poly.points)
+function lastpoint(poly)
+    p0 = first(poly.points)
+    for p in poly.points
+        p0 = p 
+    end 
+    return p0 
+end 
+
+"""
+"""
+function _isright(pa, pb, pt)
+    x1,y1 = pa
+    x2,y2 = pb
+    x,y = pt
+    return (x2 - x1)*(y - y1) < (y2 - y1)*(x - x1)
+end 
+function _isleft(pa, pb, pt)
+    return !_isright(pa, pb, pt)
+end 
+
+import Base.contains
+"""
+    contains(p::InfinitePolygon, pt)
+    
+Test if the infinite polygon contains a point.
+    The point type pt must be able to be iterated to a pair 
+    of numbers 
+"""    
+function contains(p::InfinitePolygon, pt)
+    if isfinite(p)
+        p0 = firstpoint(p)
+        for p1 in p.points
+            if p0 == p1 # skip over the first point 
+                continue
+            end 
+            if _isleft(p0, p1, pt) == false
+                return false
+            end
+            p0 = p1 
+        end 
+        # p0 is lastpoint now...
+        p1 = firstpoint(p)
+        if _isleft(p0, p1, pt) == false
+            return false
+        end 
+    else # handle the infinite case... 
+        # need to test if the polygon with infinite rays contains a point. 
+        # for each edge, we need to test if the point is on the right side of the line.
+        p0 = firstpoint(p)
+        p0 = p0.+p.head # using the .+ makes it work for a combo of points and tuples
+        for p1 in p.points
+            if _isleft(p0, p1, pt) == false
+                return false
+            end
+            p0 = p1
+        end 
+        p1 = p0 .+ p.tail 
+        if _isleft(p0, p1, pt) == false
+            return false
+        end
+    end 
+    return true
+end 
+
+"""
+    dualcell(t, i)
+    dualcell(t, centers, i)
+
+Return the finite or infinite polygon description 
+"""    
+dualcell(t::Triangulation, i::Integer) = dualcell(t, t.circumcenters, i)
+function dualcell(t::Triangulation, centers, i::Integer)
+    FT = floattype(t) 
+    if ((hi = inhull(t,i))>0)
+        raystart = t.raystart[hi]
+        rayend = t.rayend[hi]
+    else
+        raystart = (zero(FT),zero(FT))
+        rayend = (zero(FT),zero(FT))
+    end 
+    return infinitepoly((centers[i] for i in triangles(t, i)), 
+            raystart, rayend)
+end 
+
+# allow us to use the bounding box api for generic tuple bounding boxes... 
+import Base.maximum 
+origin(bbox::Tuple{Tuple{FT,FT},Tuple{FT,FT}}) where FT = bbox[1]
+maximum(bbox::Tuple{Tuple{FT,FT},Tuple{FT,FT}}) where FT = bbox[2]
+
+function _inside_bbox(pt, lowerleft, upperright)
+    if pt[1] < lowerleft[1]
+        return false
+    elseif pt[1] > upperright[1]
+        return false
+    end
+    if pt[2] < lowerleft[2]
+        return false
+    elseif pt[2] > upperright[2]
+        return false
+    end
+    return true
+end 
+
+"""
+    clippedpoly(p::InfinitePolygon, bbox)
+
+returns nothing if the poly is entirely outside the bounding box.
+Otherwise, return a set of points that represent the infinite
+polygon clipped to the bounding box. 
+"""
+function clippedpoly(p::InfinitePolygon, bbox)
+    if isfinite(p)
+        return _clip_finite(p, bbox)
+    else
+        return _clip_infinite(p, bbox)
+    end 
+end 
+
+#=
+function _clip_finite(p, bbox)
+    lowerleft = origin(bbox)
+    upperright = maximum(bbox)
+    
+    for p in poly.points
+        if _inside_bbox(p, lowerleft, upperright)
+
+        else
+            lastoutside = p 
+        end 
+    end 
+end 
+=#
+
+
 # monotonically increases with real angle, but doesn't need expensive trigonometry
 function pseudoAngle(dx, dy)
     p = dx / (abs(dx) + abs(dy))

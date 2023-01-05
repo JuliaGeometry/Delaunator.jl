@@ -155,6 +155,13 @@ function validate_halfedges(d)
     return true
 end 
 
+function validate_dualcells(t)
+    for i in eachindex(t) # for each point
+        p = dualcell(t, i)
+        @test contains(p, t.points[i]) == true 
+    end
+end 
+
 function hull_area(points, d)
     j = lastindex(d.hull)
     hull_areas = Float64[] 
@@ -202,6 +209,7 @@ end
 function validate(points, d)
     @test validate_halfedges(d) == true
     validate_area(points, d)
+    validate_dualcells(d) 
 end
 
 validate(points) = validate(points, triangulate(points))
