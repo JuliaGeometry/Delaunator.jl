@@ -391,14 +391,16 @@ function _max_dimension(bt)
 end 
 
 """
-    circumcenters!(array, bt; [collinearthresh=sqrt(eps(eltype(array)))])
+    circumcenters!(array, bt; [collinearthresh=0])
 
 Write information on the circumcenters into array. Array must 
 have length(bt.triangles) allocated. `collinearthresh` is an 
 option that 
 """
 function circumcenters!(array, t::AbstractDelaunatorData; 
-    collineartol=_max_dimension(t)/sqrt(eps(eltype(array))))
+    #collineartol=_max_dimension(t)/sqrt(eps(eltype(array)))
+    collineartol=0
+    )
     points = t.points
     tris = triangles(t) 
     FloatType = eltype(eltype(array))
@@ -471,13 +473,12 @@ function rays(::Type{FloatType}, hull, points) where FloatType
   end 
 
 """
-    triangulate([Int32,] [FloatType=Float64,] points; [tol=eps(FloatType),] 
-        [rcollineartol=sqrt(eps(FloatType))])
+    triangulate([Int32,] [FloatType=Float64,] points; [tol=eps(FloatType),])
 """
 triangulate(points; kwargs...) = triangulate(Float64, points; kwargs... )
 triangulate(::Type{FloatType}, points; kwargs...) where FloatType = triangulate(Int32, FloatType, points; kwargs...)
 function triangulate(::Type{IntType}, ::Type{FloatType}, 
-            points; tol=eps(FloatType), rcollineartol=sqrt(eps(FloatType))
+            points; tol=eps(FloatType), rcollineartol=0,
             ) where {IntType <: Signed, FloatType}
     n = length(points) 
     bt, cdata = basictriangulation(IntType, FloatType, points)

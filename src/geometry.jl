@@ -11,6 +11,9 @@ struct InfinitePolygon{ArrayType,ElType}
     tail::Tuple{ElType,ElType}
 end
 
+import Base.eltype
+eltype(::Type{InfinitePolygon{ArrayType,ElType}}) where {ArrayType, ElType} = Tuple{ElType,ElType}
+
 function Base.show(io::IO, p::InfinitePolygon)
     N = length(p.points)
     extrastr = isinfinite(p) ? " with incoming ray $(p.head) and outgoing ray $(p.tail)" : ""
@@ -32,12 +35,10 @@ isfinite(p) # return true if head/tail are both zero
 """
 
 function infinitepoly(pts, head, tail)
-    ElType = eltype(head)
-    ArrayType = typeof(pts)
+    ElType = eltype(head) # this gets the float type... 
+    ArrayType = typeof(pts) # we dont' care what this is and it could be an iterator... 
     return InfinitePolygon{ArrayType, ElType}(pts, head, tail)
 end 
-
-
 
 """
     isfinite(poly)
@@ -77,7 +78,7 @@ function _isright(pa, pb, pt)
     return (x2 - x1)*(y - y1) < (y2 - y1)*(x - x1)
 end 
 function _isleft(pa, pb, pt)
-    return !_isright(pa, pb, pt)
+    return orient(pa...,pb...,pt...)
 end 
 
 import Base.contains
@@ -92,7 +93,8 @@ function contains(p::InfinitePolygon, pt)
     if isfinite(p)
         p0 = firstpoint(p)
         for p1 in p.points
-            if p0 == p1 # skip over the first point 
+            # note that dist really computes distance squared...
+            if p0 == p1 || dist(p0...,p1...) <= eps(eltype(eltype(p)))  # skip over the first point, or repeated points 
                 continue
             end 
             if _isleft(p0, p1, pt) == false
@@ -111,17 +113,89 @@ function contains(p::InfinitePolygon, pt)
         p0 = firstpoint(p)
         p0 = p0.+p.head # using the .+ makes it work for a combo of points and tuples
         for p1 in p.points
+            if p0 == p1 || dist(p0...,p1...) <= eps(eltype(eltype(p)))  # skip over the first point, or repeated points 
+                continue
+            end 
             if _isleft(p0, p1, pt) == false
                 return false
             end
             p0 = p1
         end 
+        # p0 is last point now... 
         p1 = p0 .+ p.tail 
         if _isleft(p0, p1, pt) == false
             return false
         end
     end 
     return true
+end 
+
+"""
+import Base.iterate, Base.eltype, Base.IteratorSize
+struct SegmentsIterator{PolyType,StartType}
+    p::PolyType
+    p0::StartType
+end
+Base.IteratorSize(::Type{SegmentsIterator{PolyType,IntType}}) where {PolyType,IntType} = Base.SizeUnknown()
+Base.eltype(::Type{SegmentsIterator{PolyType}}) where {PolyType} = eltype(PolyType)
+#Base.isdone(it::SegmentsIterator, state) = state
+#Base.length()
+
+The logic here is: we cache the start point in the state.
+
+function Base.iterate(it::SegmentsIterator, state=nothing) 
+    if # check done...
+    else
+        if state === nothing
+            p0 = firstpoint(it.p)
+            state = 
+    # we are done if state == it.start again, after the first iteration
+    if state == it.start || state == -1
+        return nothing
+    else
+        if state === nothing 
+            state = it.start
+        end 
+        if state == 0 
+            return nothing
+        end
+        outgoing = _nextedge(state)
+        incoming = it.t.halfedges[outgoing]
+        nextstate = incoming 
+        return (triangle_from_index(it.t, state), nextstate)
+    end 
+end
+
+function Base.length(it::TriangleNeighborIterator) 
+    len = 0 
+    start = it.start 
+    if start > 0
+        len += 1
+        halfedges = it.t.halfedges 
+        state = start
+        outgoing = _nextedge(state)
+        state = halfedges[outgoing]
+        while (state != -1 && state != start)
+            outgoing = _nextedge(state)
+            state = halfedges[outgoing]
+            len += 1
+        end 
+    end 
+    return len 
+end 
+"""
+
+"""
+    segments(p::InfinitePolygon; )
+
+Return an iterator over linesegments involved in the polygon.
+If the polygon is infinite, then this will not be closed.
+If the polygon is finite, then it will be closed.
+"""
+function segments(p::InfinitePolygon)
+    if isfinite(p)
+    else
+    end 
 end 
 
 """
@@ -296,12 +370,15 @@ function truncatedcircumcenter(x1::FloatType, y1::FloatType,
     x2,y2 = point(FloatType, points, t2)
     x3,y3 = point(FloatType, points, t3)
     =#
+
+    #=
     # TODO, make this relative? 
     dx = x2 - x1
     dy = y2 - y1
     ex = x3 - x1
     ey = y3 - y1
-    ab = (dx * ey - dy * ex) * 2
+    #ab = (dx * ey - dy * ex) * 2
+    ab = -Delaunator.orientIfSure(x2,y2,x3,y3,x1,y1)*2
 
     if abs(ab) < collineartol
         # degenerate case (collinear diagram)
@@ -325,5 +402,7 @@ function truncatedcircumcenter(x1::FloatType, y1::FloatType,
         y = y1 + (dx * cl - ex * bl) * d
     end 
     return (x,y)
+    =#
+    return circumcenter(x1,y1,x2,y2,x3,y3)
 end 
 

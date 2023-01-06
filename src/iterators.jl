@@ -23,6 +23,9 @@ function Base.iterate(it::PointNeighborIterator, state=nothing)
         if state === nothing 
             state = it.start
         end 
+        if state == 0 # then this list is empty
+            return nothing
+        end 
         outgoing = _nextedge(state)
         incoming = it.t.halfedges[outgoing]
         nextstate = incoming 
@@ -103,7 +106,7 @@ struct TriangleNeighborIterator{TriType,IntType}
 end
 #Base.IteratorSize(::Type{PointNeighborIterator{TriType,IntType}}) where {TriType,IntType} = Base.SizeUnknown()
 Base.eltype(::Type{TriangleNeighborIterator{TriType,IntType}}) where {TriType,IntType} = IntType
-Base.isdone(it::TriangleNeighborIterator, state) = state == it.start || state == -1
+Base.isdone(it::TriangleNeighborIterator, state) = state == it.start || state == -1 || state == 0 
 function Base.iterate(it::TriangleNeighborIterator, state=nothing) 
     # we are done if state == it.start again, after the first iteration
     if state == it.start || state == -1
@@ -112,6 +115,9 @@ function Base.iterate(it::TriangleNeighborIterator, state=nothing)
         if state === nothing 
             state = it.start
         end 
+        if state == 0 
+            return nothing
+        end
         outgoing = _nextedge(state)
         incoming = it.t.halfedges[outgoing]
         nextstate = incoming 
@@ -120,16 +126,19 @@ function Base.iterate(it::TriangleNeighborIterator, state=nothing)
 end
 
 function Base.length(it::TriangleNeighborIterator) 
-    len = 1 
+    len = 0 
     start = it.start 
-    halfedges = it.t.halfedges 
-    state = start
-    outgoing = _nextedge(state)
-    state = halfedges[outgoing]
-    while (state != -1 && state != start)
+    if start > 0
+        len += 1
+        halfedges = it.t.halfedges 
+        state = start
         outgoing = _nextedge(state)
         state = halfedges[outgoing]
-        len += 1
+        while (state != -1 && state != start)
+            outgoing = _nextedge(state)
+            state = halfedges[outgoing]
+            len += 1
+        end 
     end 
     return len 
 end 
