@@ -81,6 +81,8 @@ function _isleft(pa, pb, pt)
     return orient(pa...,pb...,pt...)
 end 
 
+
+
 import Base.contains
 """
     contains(p::InfinitePolygon, pt)
@@ -130,72 +132,78 @@ function contains(p::InfinitePolygon, pt)
     return true
 end 
 
-"""
 import Base.iterate, Base.eltype, Base.IteratorSize
-struct SegmentsIterator{PolyType,StartType}
+struct SegmentsIterator{PolyType,FloatType}
     p::PolyType
-    p0::StartType
+    dist::FloatType 
 end
-Base.IteratorSize(::Type{SegmentsIterator{PolyType,IntType}}) where {PolyType,IntType} = Base.SizeUnknown()
-Base.eltype(::Type{SegmentsIterator{PolyType}}) where {PolyType} = eltype(PolyType)
-#Base.isdone(it::SegmentsIterator, state) = state
-#Base.length()
-
-The logic here is: we cache the start point in the state.
-
-function Base.iterate(it::SegmentsIterator, state=nothing) 
-    if # check done...
-    else
-        if state === nothing
-            p0 = firstpoint(it.p)
-            state = 
-    # we are done if state == it.start again, after the first iteration
-    if state == it.start || state == -1
-        return nothing
-    else
-        if state === nothing 
-            state = it.start
-        end 
-        if state == 0 
+Base.IteratorSize(::Type{SegmentsIterator{PolyType,FloatType}}) where {PolyType,FloatType} = Base.SizeUnknown()
+Base.eltype(::Type{SegmentsIterator{PolyType,FloatType}}) where {PolyType,FloatType} = Tuple{Tuple{FloatType,FloatType},Tuple{FloatType,FloatType}}
+# algorithm
+# for an infinite poly
+#   set p0 = p0 + head
+#   then walk through all points in p.points (checking if p1 == p0, or small distance)
+#   return (p0,p1), (p1, nextiter)
+#   once the nextiter is done...
+#   return p0, p0+tail # using p0 here means that the sequence of points hsould be closed
+# for a finite poly
+#   set p0 = p0
+#   then walk through all the points in p.points (checking if p1 == p0, or small distance)
+#   return (p0, p1), (p1, nextiter)
+#   once the nextiter is done
+#   return p0, p1 = firstpoint(p) 
+function Base.iterate(si::SegmentsIterator, state=nothing)
+    p = si.p 
+    if state === nothing
+        piter = iterate(p.points)
+        if piter === nothing # then there are no points
             return nothing
         end
-        outgoing = _nextedge(state)
-        incoming = it.t.halfedges[outgoing]
-        nextstate = incoming 
-        return (triangle_from_index(it.t, state), nextstate)
-    end 
-end
 
-function Base.length(it::TriangleNeighborIterator) 
-    len = 0 
-    start = it.start 
-    if start > 0
-        len += 1
-        halfedges = it.t.halfedges 
-        state = start
-        outgoing = _nextedge(state)
-        state = halfedges[outgoing]
-        while (state != -1 && state != start)
-            outgoing = _nextedge(state)
-            state = halfedges[outgoing]
-            len += 1
+        p0 = firstpoint(p) 
+        if isinfinite(p) 
+            p0 = p0 .+ p.head # TODO, adjust so that it's always at least dist away... 
+        end
+        piter = iterate(p.points)
+        lastpoint = false
+    else
+        p0, piter, lastpoint = state
+    end 
+    # at this point, p0 and piter are both initialized
+    
+    while piter !== nothing
+        p1,pstate = piter
+        if p1 != p0 && dist(p0...,p1...) > si.dist 
+            return ((p0,p1), (p1, iterate(p.points, pstate), lastpoint))
+        end
+        piter = iterate(p.points, pstate)
+    end 
+
+    # at this point, piter === nothing 
+    if lastpoint # once last point is set, we have handled the last end-of-stream point 
+        return nothing # we are done
+    else
+        lastpoint = true 
+        if isfinite(p)
+            p1 = firstpoint(p) 
+        else
+            p1 = p0 .+ p.tail # no need to adjust, since we guarantee return. 
         end 
+        return ((p0,p1), (p1, piter, lastpoint))
     end 
-    return len 
 end 
-"""
+Base.isdone(it::SegmentsIterator, state) = state[3] == true 
 
 """
-    segments(p::InfinitePolygon; )
+    segments(p::InfinitePolygon; [dist = eps()])
 
 Return an iterator over linesegments involved in the polygon.
 If the polygon is infinite, then this will not be closed.
 If the polygon is finite, then it will be closed.
 """
-function segments(p::InfinitePolygon)
-    if isfinite(p)
-    else
-    end 
+function segments(p::InfinitePolygon; dist::Real = eps(eltype(firstpoint(p))))
+    FloatType = eltype(firstpoint(p))
+    return SegmentsIterator{typeof(p),FloatType}(p, dist)
 end 
 
 """
