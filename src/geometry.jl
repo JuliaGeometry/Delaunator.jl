@@ -49,7 +49,7 @@ Test if the polygon is infinite or finite.
 :isfinite, :isinfinite 
 
 import Base.isfinite 
-function isfinite(poly)
+function isfinite(poly::InfinitePolygon)
     if poly.head == (0,0) && poly.tail == (0,0)
         return true
     else
