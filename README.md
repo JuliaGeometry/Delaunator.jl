@@ -1,10 +1,14 @@
 # Delaunator
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://sjkelly.github.io/Delaunator.jl/stable)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://sjkelly.github.io/Delaunator.jl/dev)
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://juliageometry.github.io/Delaunator.jl/stable)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://juliageometry.github.io/Delaunator.jl/dev)
+[![Codecov](https://codecov.io/gh/juliageometry/Delaunator.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/juliageometry/Delaunator.jl)
+[![Coveralls](https://coveralls.io/repos/github/juliageometry/Delaunator.jl/badge.svg?branch=master)](https://coveralls.io/github/juliageometry/Delaunator.jl?branch=master)
 
-[![Codecov](https://codecov.io/gh/sjkelly/Delaunator.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/sjkelly/Delaunator.jl)
-[![Coveralls](https://coveralls.io/repos/github/sjkelly/Delaunator.jl/badge.svg?branch=master)](https://coveralls.io/github/sjkelly/Delaunator.jl?branch=master)
+A port of [Mapbox's Delaunator](https://github.com/mapbox/delaunator) to Julia.
+
+> An incredibly fast and robust Javascript library for
+> [Delaunay triangulation](https://en.wikipedia.org/wiki/Delaunay_triangulation) of 2D points.
 
 The Delaunator algorithm computes a simple 2d triangulation of an arbitrary set of points in the plane _quickly_. This package provides a Julia implementation of the algorithm along with a number of supporting routines that operate on the Delaunator data structures. 
 
@@ -94,5 +98,3 @@ cellarea(bc, i)
 cellpoly(bc, i) 
 neighbors(bc, i) # get an iterator over neighbors of the bounded cells 
 ```
-
-  

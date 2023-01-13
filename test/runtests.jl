@@ -324,3 +324,9 @@ end
 
 end 
 
+import Aqua
+Aqua.test_all(Delaunator)
+
+import JET
+JET.report_package(Delaunator)
+
