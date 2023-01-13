@@ -205,12 +205,32 @@ function validate_area(points, d)
     @test abs(hullarea - triarea)/abs(hullarea) <= 2*eps(Float64)
 end
 
+function validate_clippedpolys(t)
+    # make a bounding box that includes everything 
+    bmin,bmax = Delaunator.margin_bbox(t, 0.05)
+    bbox = bmin...,bmax...
+    for i in eachindex(t) # for each point
+        p = dualcell(t, i)
+        cpts = clippedpoly(p, bbox)
+        if last(cpts) == first(cpts)
+            cpts = cpts[1:end-1]
+        end 
+        FT = eltype(eltype(cpts))
+        # make a finite polygon with all the points
+        cp = Delaunator.InfinitePolygon(cpts, 
+            (zero(FT),zero(FT)),(zero(FT),zero(FT)))
+        @test contains(cp, t.points[i]) == true 
+    end
+end 
 
-function validate(points, d; skip_dualcell=false)
+function validate(points, d; skip_dualcell=false, skip_clipped=false)
     @test validate_halfedges(d) == true
     validate_area(points, d)
     if !skip_dualcell
         validate_dualcells(d) 
+        if !skip_clipped
+            validate_clippedpolys(d)
+        end 
     end 
 end
 

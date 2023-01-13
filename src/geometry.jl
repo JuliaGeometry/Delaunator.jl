@@ -170,7 +170,7 @@ function Base.iterate(si::SegmentsIterator, state=nothing)
         p0, piter, lastpoint = state
     end 
     # at this point, p0 and piter are both initialized
-    
+
     while piter !== nothing
         p1,pstate = piter
         if p1 != p0 && dist(p0...,p1...) > si.dist 
@@ -225,56 +225,6 @@ function dualcell(t::Triangulation, centers, i::Integer)
     return infinitepoly((centers[i] for i in triangles(t, i)), 
             raystart, rayend)
 end 
-
-# allow us to use the bounding box api for generic tuple bounding boxes... 
-import Base.maximum 
-origin(bbox::Tuple{Tuple{FT,FT},Tuple{FT,FT}}) where FT = bbox[1]
-maximum(bbox::Tuple{Tuple{FT,FT},Tuple{FT,FT}}) where FT = bbox[2]
-
-function _inside_bbox(pt, lowerleft, upperright)
-    if pt[1] < lowerleft[1]
-        return false
-    elseif pt[1] > upperright[1]
-        return false
-    end
-    if pt[2] < lowerleft[2]
-        return false
-    elseif pt[2] > upperright[2]
-        return false
-    end
-    return true
-end 
-
-"""
-    clippedpoly(p::InfinitePolygon, bbox)
-
-returns nothing if the poly is entirely outside the bounding box.
-Otherwise, return a set of points that represent the infinite
-polygon clipped to the bounding box. 
-"""
-function clippedpoly(p::InfinitePolygon, bbox)
-    if isfinite(p)
-        return _clip_finite(p, bbox)
-    else
-        return _clip_infinite(p, bbox)
-    end 
-end 
-
-#=
-function _clip_finite(p, bbox)
-    lowerleft = origin(bbox)
-    upperright = maximum(bbox)
-    
-    for p in poly.points
-        if _inside_bbox(p, lowerleft, upperright)
-
-        else
-            lastoutside = p 
-        end 
-    end 
-end 
-=#
-
 
 # monotonically increases with real angle, but doesn't need expensive trigonometry
 function pseudoAngle(dx, dy)
