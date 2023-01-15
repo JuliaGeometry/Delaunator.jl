@@ -218,3 +218,161 @@ function _delaunator!(
     return _hullStart, hullSize, trianglesLen ÷ 3
 end 
 
+
+
+function _link(_halfedges, a, b)
+    #println("Link: $a, $b")
+    #_halfedges[a] = b == -1 ? typemax(UInt32) : b
+    _halfedges[a] = b
+    if b != -1 
+        _halfedges[b] = a
+    end 
+end
+
+
+
+# add a new triangle given vertex indices and adjacent half-edge ids
+function _addTriangle(_triangles, _halfedges, t, i0, i1, i2, a, b, c)
+
+    _triangles[t] = i0
+    _triangles[t + 1] = i1
+    _triangles[t + 2] = i2
+
+    _link(_halfedges, t, a)
+    _link(_halfedges, t + 1, b)
+    _link(_halfedges, t + 2, c)
+    #@assert(_validate_halfedges(_halfedges) == true)
+
+    return t + 3
+end
+
+
+
+function _hashKey(x, y, cx, cy, _hashSize)
+    return (floor(Int, pseudoAngle(x - cx, y - cy) * _hashSize) % _hashSize)+1
+end
+
+function _legalize(::Type{FloatType}, a, triangles, halfedges, coords, EDGE_STACK, hullPrev, hullTri, _hullStart) where {FloatType}
+
+    i = 1
+    ar = 0
+
+    #recursion eliminated with a fixed-size stack
+    while true
+        b = halfedges[a]
+
+         # if the pair of triangles doesn't satisfy the Delaunay condition
+         # (p1 is inside the circumcircle of [p0, pl, pr]), flip them,
+         # then do the same check/flip recursively for the new pair of triangles
+         #
+         #           pl                    pl
+         #          /||\                  /  \
+         #       al/ || \bl            al/    \a
+         #        /  ||  \              /      \
+         #       /  a||b  \    flip    /___ar___\
+         #     p0\   ||   /p1   =>   p0\---bl---/p1
+         #        \  ||  /              \      /
+         #       ar\ || /br             b\    /br
+         #          \||/                  \  /
+         #           pr                    pr
+         #
+        #a0 = a - a % 3
+        a0 = (a-1) - ((a-1)%3)+ 1 # translate to 1 based indexes
+        ar = (a0-1) + ((a-1) + 2) % 3 + 1 # translate to 1 based indexes
+
+        if b == -1 #convex hull edge
+            i == 1 && break
+            i -= 1
+            a = EDGE_STACK[i]
+            continue
+        end
+
+        b0 = (b-1) - ((b-1) % 3) + 1
+        al = (a0-1) + ((a-1) + 1) % 3 + 1
+        bl = (b0-1) + ((b-1) + 2) % 3 + 1
+
+        p0 = triangles[ar]
+        pr = triangles[a]
+        pl = triangles[al]
+        p1 = triangles[bl]
+
+        illegal = inCircle(point(FloatType,coords,p0)..., 
+                           point(FloatType,coords,pr)..., 
+                           point(FloatType,coords,pl)..., 
+                           point(FloatType,coords,p1)...)
+
+        if illegal
+            triangles[a] = p1
+            triangles[b] = p0
+
+            hbl = halfedges[bl]
+
+            # edge swapped on the other side of the hull (rare); fix the halfedge reference
+            if hbl == -1
+                e = _hullStart
+                # CAUTION do-while
+                if hullTri[e] == bl
+                    hullTri[e] = a
+                else
+                    e = hullPrev[e]
+                    while e != _hullStart
+                        if hullTri[e] == bl
+                            hullTri[e] = a
+                            break
+                        end
+                        e = hullPrev[e]
+                    end
+                end
+            end
+
+            _link(halfedges, a, hbl)
+            _link(halfedges, b, halfedges[ar])
+            _link(halfedges, ar, bl)
+            #@assert(_validate_halfedges(halfedges) == true)
+
+            br = (b0-1) + ((b-1) + 1) % 3 + 1
+
+            # don't worry about hitting the cap: it can only happen on extremely degenerate input
+            if i < length(EDGE_STACK)
+                EDGE_STACK[i] = br
+                i += 1
+            end
+        else
+            i == 1 && break
+            i -= 1
+            a = EDGE_STACK[i]
+        end
+    end
+
+    return ar
+end
+
+
+function _link(_halfedges, a, b)
+    #println("Link: $a, $b")
+    #_halfedges[a] = b == -1 ? typemax(UInt32) : b
+    _halfedges[a] = b
+    if b != -1 
+        _halfedges[b] = a
+    end 
+end
+
+
+
+# add a new triangle given vertex indices and adjacent half-edge ids
+function _addTriangle(_triangles, _halfedges, t, i0, i1, i2, a, b, c)
+
+    _triangles[t] = i0
+    _triangles[t + 1] = i1
+    _triangles[t + 2] = i2
+
+    _link(_halfedges, t, a)
+    _link(_halfedges, t + 1, b)
+    _link(_halfedges, t + 2, c)
+    #@assert(_validate_halfedges(_halfedges) == true)
+
+    return t + 3
+end
+
+
+

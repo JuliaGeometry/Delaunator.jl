@@ -123,22 +123,6 @@ end
 inttype(t::AbstractDelaunatorData) = eltype(eltype(triangles(t)))
 floattype(t::AbstractDelaunatorData) = eltype(eltype(bounds(t)))
 
-
-""" Create the right returntype from a delaunator call. """
-function _returntype(trituples, halfedges, hull, points, index)
-    PointsType = typeof(points) 
-    IntType = eltype(halfedges)
-
-    # rewrap with a flat pointer
-    ntris = length(trituples)
-    _ptridata = Base.unsafe_convert(Ptr{IntType}, trituples)
-    _triangles = unsafe_wrap(Array, _ptridata, 3*ntris)
-
-    return Triangulation{IntType, Float64, PointsType}(
-            trituples, halfedges,  points,  _triangles, (0.0,0.0), (1.0,1.0), hull, index, 
-            Tuple{Float64,Float64}[], Tuple{Float64,Float64}[])
-end 
-
 function Base.show(io::IO, t::AbstractDelaunatorData)
     T = length(triangles(t))
     N = length(t.points)
@@ -209,6 +193,20 @@ end
 
 Allocate a basic triangulation structure and associated compute data in order
 to implement the Deluantor method. 
+
+**This method does not actaully compute a triangulation, but only allocates
+the data. See `triangulate` or `update!` for the computational methods.**
+
+The triangulation data structure 
+----------------
+These data structures are explained at https://mapbox.github.io/delaunator/ 
+(but here, all the indices have been modified a little).
+
+- `triangles`: a length T array of 3 tuples, where each tuple is a triangle
+- `halfedges`: The halfedge index for the edge in the triangle array. The halfedges for 
+    triangle t are 3(t-1)+1, 3(t-1)+2, 3(t-2)+3. Each halfedge index gives the entry
+    of the other halfedge. 
+- `points` a copy of the input set of points
 """
 basictriangulation(; kwargs...) = basictriangulation([]; kwags...)
 basictriangulation(points; kwargs...) = basictriangulation(Int32, points; kwargs...)
@@ -439,7 +437,6 @@ function rays_for_point(t)
 end 
 ```    
 """
-
 function rays(::Type{FloatType}, hull, points) where FloatType
     #d3-delaunay/Voronoi.js code 
     #=
@@ -470,10 +467,27 @@ function rays(::Type{FloatType}, hull, points) where FloatType
         rayend[hi0] = raystart[hi1] = (y0 - y1, x1 - x0) 
     end 
     return raystart, rayend 
-  end 
+end 
 
 """
     triangulate([Int32,] [FloatType=Float64,] points; [tol=eps(FloatType),])
+
+Computes a triangulation of a set of points using the Delaunator algorithm.
+This is designed for quick graphics applications and speed rather than exact computational geometry.
+
+Inputs
+------
+- `points` is any type that has integer indexing and length supported. In addition, `p = points[i]` should
+be a type where `p[1]` and `p[2]` are the x, y coordinates of p. Or you need to define the functions 
+`Delaunator.getX(p), Delaunator.getY(p)` for your own type p. 
+
+    If you wish to use a a matrix 
+
+- `tol` is used to determine when points are sufficiently close not to include.
+
+Return value
+------------
+A triangulation, with methods to explore edges, hull points, dual cells.
 """
 triangulate(points; kwargs...) = triangulate(Float64, points; kwargs... )
 triangulate(::Type{FloatType}, points; kwargs...) where FloatType = triangulate(Int32, FloatType, points; kwargs...)
