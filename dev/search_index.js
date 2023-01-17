@@ -1,0 +1,3 @@
+var documenterSearchIndex = {"docs":
+[{"location":"#Delaunator.jl","page":"Home","title":"Delaunator.jl","text":"","category":"section"},{"location":"","page":"Home","title":"Home","text":"","category":"page"},{"location":"","page":"Home","title":"Home","text":"Modules = [Delaunator]","category":"page"},{"location":"#Delaunator._returntype-NTuple{5, Any}","page":"Home","title":"Delaunator._returntype","text":"Create the right returntype from a delaunator call. \n\n\n\n\n\n","category":"method"},{"location":"#Delaunator.index_halfedges!-Tuple{Any, Any, Any}","page":"Home","title":"Delaunator.index_halfedges!","text":"Store the first time a point occurs in halfedges into the index. \n\n\n\n\n\n","category":"method"}]
+}
