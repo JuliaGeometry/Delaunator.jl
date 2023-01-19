@@ -15,6 +15,7 @@ include("algorithm.jl") # nothing is exported here...
 include("iterators.jl")
 export neighbors, edges, edgelines, hullpoly
 
-
+include("helpers.jl")
+export PointsFromMatrix
 
 end # module
