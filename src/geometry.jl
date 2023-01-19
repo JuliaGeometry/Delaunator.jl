@@ -201,7 +201,7 @@ Return an iterator over linesegments involved in the polygon.
 If the polygon is infinite, then this will not be closed.
 If the polygon is finite, then it will be closed.
 """
-function segments(p::InfinitePolygon; dist::Real = eps(eltype(firstpoint(p))))
+function segments(p::InfinitePolygon; dist::Real = eps(eltype(eltype(p))))
     FloatType = eltype(firstpoint(p))
     return SegmentsIterator{typeof(p),FloatType}(p, dist)
 end 

@@ -348,31 +348,4 @@ function _legalize(::Type{FloatType}, a, triangles, halfedges, coords, EDGE_STAC
 end
 
 
-function _link(_halfedges, a, b)
-    #println("Link: $a, $b")
-    #_halfedges[a] = b == -1 ? typemax(UInt32) : b
-    _halfedges[a] = b
-    if b != -1 
-        _halfedges[b] = a
-    end 
-end
-
-
-
-# add a new triangle given vertex indices and adjacent half-edge ids
-function _addTriangle(_triangles, _halfedges, t, i0, i1, i2, a, b, c)
-
-    _triangles[t] = i0
-    _triangles[t + 1] = i1
-    _triangles[t + 2] = i2
-
-    _link(_halfedges, t, a)
-    _link(_halfedges, t + 1, b)
-    _link(_halfedges, t + 2, c)
-    #@assert(_validate_halfedges(_halfedges) == true)
-
-    return t + 3
-end
-
-
 

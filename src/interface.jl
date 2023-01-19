@@ -208,7 +208,7 @@ These data structures are explained at https://mapbox.github.io/delaunator/
     of the other halfedge. 
 - `points` a copy of the input set of points
 """
-basictriangulation(; kwargs...) = basictriangulation([]; kwags...)
+basictriangulation(; kwargs...) = basictriangulation([]; kwargs...)
 basictriangulation(points; kwargs...) = basictriangulation(Int32, points; kwargs...)
 basictriangulation(::Type{IntType}, points; kwargs...) where IntType = basictriangulation(Int32, Float64, points; kwargs...)
 function basictriangulation(::Type{IntType}, ::Type{FloatType}, points;

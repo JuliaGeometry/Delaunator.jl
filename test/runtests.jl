@@ -35,6 +35,10 @@ robustness2 = map(x->Float64.(x), JSON.parsefile("fixtures/robustness2.json"))
 
 include("iterators.jl")
 
+@testset "clipping" begin 
+include("clipping.jl")
+end 
+
 # test('triangulates plain array', (t) => {
 #     const d = new Delaunator([].concat(...points));
 #     t.same(d.triangles, Delaunator.from(points).triangles);

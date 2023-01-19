@@ -29,37 +29,55 @@ function canonicalize_bbox(p, bbox)
     FloatType.(bbox)
 end 
 """
-    clippedpoly(p::InfinitePolygon, bbox)
+    clippedpoly(p::InfinitePolygon, bbox; [closed=true])
     clippedpoly!(pts, p::InfinitePolygon, bbox) 
     
 returns an empty array if the poly is entirely outside the bounding box.
-Otherwise, return a set of points that represent the infinite
-polygon clipped to the bounding box. 
+Otherwise, return a set of points that represent edges of the infinite
+polygon clipped to the bounding box. The set of points will 
+be closed (where the first point is equal to the last) if the
+closed=true option is set. The set of points _may_ be closed
+even if this isn't set. Using closed=true results in simpler
+behavior. This is not an option on the mutating version, see below. 
 
 The mutating version will update the pts array by using
     - `push!(pts, <newpt>)` 
     - `last(pts)`
     - `isempty(pts)`
-It will return the input type pts
+It will return the input type pts. 
 
 Example code
 ============
 ```
 # generate polygon regions for all of the dualcells 
 # clipped to a 5% expansion of the point bounding box
-# as a list of NaN separated paths. 
+# as a list of NaN separated paths, with all 
+# polygons closed. 
 using GeometryBasics
 t = triangulate(rand(Point2f, 15))
 ppts = Point2f[]
 for i in eachindex(t)
+    ind = lastindex(ppts)
     clippedpoly!(ppts, dualcell(t, i), margin_bbox(t, 0.05))
-    push!(ppts, NaN)
+    # check if the polygon was closed... 
+    if lastindex(ppts) > ind # then we added point
+        if ppts[ind+1] != ppts[end] # check if we are closed
+            push!(ppts, ppts[ind+1]) # close the polygon
+        end 
+    end 
+    push!(ppts, NaN) # add the NaN separator 
 end 
 ```
+
+
 """
 :clippedpoly, :clippedpoly!
-function clippedpoly(p::InfinitePolygon, bbox)
-    clippedpoly!(eltype(p)[], p, bbox) 
+function clippedpoly(p::InfinitePolygon, bbox; closed::Bool=true)
+    pts = clippedpoly!(eltype(p)[], p, bbox) 
+    if closed && length(pts) > 0 && pts[begin] != pts[end]
+        push!(pts, pts[begin]) # close the polygon
+    end 
+    return pts
 end 
 
 function clippedpoly!(pts, p::InfinitePolygon, bbox)
@@ -88,8 +106,11 @@ function intersects(a,b,c,d,p,q,r,s) {
     return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
   }
 
+
+  More derivation here... 
+  https://stackoverflow.com/questions/2931573/determining-if-two-rays-intersect
   =#
-function intersect_lines(a1,a2,b1,b2)
+#=function intersect_lines(a1,a2,b1,b2)
   a,b = a1 
   c,d = a2
   p,q = b1
@@ -102,6 +123,78 @@ function intersect_lines(a1,a2,b1,b2)
     gamma = ((b - d) * (r - a) + (c - a) * (s - b)) / det;
     return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1)
   end 
+end =#
+
+""" Determine the intersection between lines
+a1 -> a2 and b1 -> b2
+This returns the intersection point as a
+parameter: 
+a1 + t1*(a2-a1) == b1 + t2*(b2-b1)
+This gives the linear system
+  a + t1*(c-a) == p + t2 *(r-p)
+  b + t1*(d-b) == q + t2 *(s-q)
+or
+  a-p == t1*(a-c) + t2*(r-p)
+  b-q == t1*(b-d) + t2*(s-q)
+or
+  a-p == [a-c  r-p]*[t1 ] 
+  b-q    [b-d  s-q] [t2 ]  
+or (0,0) if the problems are parallel, or
+(Inf,Inf) if there is no finite solution.
+"""
+function intersection(a1,a2,b1,b2)
+    a,b = a1 
+    c,d = a2
+    p,q = b1
+    r,s = b2
+    rhs1 = a-p
+    rhs2 = b-q
+    A11 = a-c
+    A12 = r-p
+    A21 = b-d 
+    A22 = s-q
+    det = A11*A22 - A12*A21 
+    epsval = eps(typeof(1/det))
+    if abs(det) <= epsval
+        # check for consistent system
+        # TODO, check for consistent system...
+        # check for relative error...
+        scaleval = abs(det)/max(abs(A11),abs(A12),abs(A21),abs(A22))
+        if scaleval <= epsval 
+            # then this is really singular...
+            if a1 == b1 && a2 == b2
+                return (zero(typeof(epsval)),zero(typeof(epsval)))
+            else
+                # they are parallel... 
+                return Inf.*(one(typeof(epsval)),one(typeof(epsval)))
+            end 
+        end
+    end
+
+    # this is just cramer's rule (determintent form)
+    t1 = (rhs1*A22 - rhs2*A12)/det
+    t2 = (A11*rhs2 - A21*rhs1)/det 
+    return (t1,t2)
+end 
+
+""" Test if the ray from b1 -> b2 -> infinity
+intersects the line a1, a2. """
+function intersect_ray(a1,a2,b1,b2)
+    t1,t2 = intersection(a1,a2,b1,b2)
+    if 0 <= t1 <= 1 && 0 <= t2 
+        return true
+    else
+        return false
+    end 
+end 
+
+function intersect_lines(a1,a2,b1,b2)
+    t1,t2 = intersection(a1,a2,b1,b2)
+    if 0 <= t1 <= 1 && 0 <= t2 <= 1
+        return true
+    else
+        return false
+    end
 end 
 
 function intersect_bbox(p1, p2, bbox)
@@ -110,6 +203,18 @@ function intersect_bbox(p1, p2, bbox)
         intersect_lines(p1,p2,(xmin,ymin),(xmin,ymax)) ||
         intersect_lines(p1,p2,(xmax,ymin),(xmax,ymax)) || 
         intersect_lines(p1,p2,(xmin,ymax),(xmax,ymax))
+        return true
+    else
+        return false
+    end 
+end 
+
+function intersect_ray_bbox(p1, ray, bbox)
+    xmin,ymin,xmax,ymax = bbox 
+    if intersect_ray((xmin,ymin),(xmax,ymin), p1, p1 .+ ray) || 
+        intersect_ray((xmin,ymin),(xmin,ymax), p1, p1 .+ ray) || 
+        intersect_ray((xmax,ymin),(xmax,ymax), p1, p1 .+ ray) || 
+        intersect_ray((xmin,ymax),(xmax,ymax), p1, p1 .+ ray) 
         return true
     else
         return false
@@ -163,10 +268,15 @@ function dual_intersections(pt, ray, bbox)
         return (x4,y4), (x2,y2)
     elseif t4 <= t3 <= t1 && t4 <= t3 <= t2 
         return (x4,y4), (x3,y3)
+    else # shouldn't ever be able to get here... 
+        @assert(false,"all combinations listed above")
+        return (x1,y1),(x2,y2)
     end 
 end 
 
 #=
+Keep this function around because it gives
+    the set of comparisons above 
 function write_comparison()
   for t1=1:4, t2=1:4
     if t1==t2 
@@ -202,13 +312,13 @@ function projectray_short(pt, ray, bbox)
     c = Inf 
 
     # check if it misses entirely.
-    if y0 < ymin && vy < 0 
+    if y0 < ymin && vy <= 0 
         return false, pt
-    elseif y0 > ymax && vy > 0 
+    elseif y0 > ymax && vy >= 0 
         return false, pt
-    elseif x0 < xmin && vx < 0 
+    elseif x0 < xmin && vx <= 0 
         return false, pt
-    elseif x0 > xmax && vx > 0 
+    elseif x0 > xmax && vx >= 0 
         return false, pt
     end
     
@@ -267,6 +377,14 @@ function projectray(pt, ray, bbox)
                 x,y = x0+c*vx, ymin
             end
         end
+    elseif vy == 0 
+        # no change in vy, so need to if 
+        # initial point is outside.
+        if (y0 <= ymin || y0 >= ymax)
+            return false, pt 
+        else
+            # what if 
+        end 
     else
         if (y0 >= ymax)
             return false, pt 
@@ -288,6 +406,10 @@ function projectray(pt, ray, bbox)
                 t = c
                 x,y = xmin, y0 + c*vy 
             end
+        end 
+    elseif vx == 0 
+        if (x0 <= xmin || x0 >= xmax)
+            return false, pt 
         end 
     else
         if (x0 >= xmax)
@@ -437,6 +559,7 @@ function _clip_finite!(pts, p, bbox)
     lastoutsidecode = 0 
     closedoutside = true 
     lastcode = 0 
+    zeropoints = true 
     for (p1,p2) in segments(p) 
         c1 = _regioncode(p1, bbox)
         c2 = _regioncode(p2, bbox)
@@ -445,6 +568,7 @@ function _clip_finite!(pts, p, bbox)
             # all inside
             _add_pt(pts, p1) # this will check if it's a duplicate... 
             _add_pt(pts, p2) 
+            zeropoints = false 
         elseif c1 != 0 && c2 == 0 
             # then we come back inside... 
             p1b = projectray_short(p1, p2 .- p1, bbox)[2] 
@@ -453,18 +577,22 @@ function _clip_finite!(pts, p, bbox)
                 # then nothing else has been outside... 
                 # so just project the outside to inside ray 
                 _add_pt(pts, p1b)
+                zeropoints = false 
             else
                 # then there was another point outside...
                 _add_bbox_points(pts, lastoutsidecode, c1b, p, bbox)
                 _add_pt(pts, p1b)
+                zeropoints = false 
             end 
             _add_pt(pts, p2)
+            zeropoints = false 
             closedoutside = true 
         elseif c1 == 0 && c2 != 0 
             # this is when we leave the region
             _add_pt(pts, p1)
             p2b = projectray_short(p1, p2 .- p1, bbox)[2] 
             _add_pt(pts, p2b) 
+            zeropoints = false 
             c2b = _regioncode(p2b, bbox) 
             lastoutsidecode = c2b 
             closedoutside = false 
@@ -482,6 +610,7 @@ function _clip_finite!(pts, p, bbox)
                         _add_pt(pts, p1b)
                         _add_bbox_points(pts, c1b, c2b, p, bbox)
                         _add_pt(pts, p2b)
+                        zeropoints = false 
                     end
                     lastoutsidecode = c2b
                     closedoutside = false 
@@ -493,8 +622,24 @@ function _clip_finite!(pts, p, bbox)
         # then we still need to close the polygon
         _add_bbox_points(pts, lastoutsidecode, lastcode, p, bbox)
     end 
+    if zeropoints
+        # this _could_ mean the polygon is entirely inside...
+        # so test if the entire bbox is inside the polygon
+        _test_and_add_bbox(pts, p, bbox)
+    end 
     return pts
 end 
+
+function _test_and_add_bbox(pts, p, bbox)
+    xmin,ymin,xmax,ymax = bbox 
+    if contains(p, (0.5*xmin+0.5*xmax,0.5*ymin + 0.5*ymax)) 
+        # then we need to add everything!
+        _add_pt(pts, (xmin,ymin))
+        _add_pt(pts, (xmax,ymin))
+        _add_pt(pts, (xmax,ymax))
+        _add_pt(pts, (xmin,ymax))
+    end 
+end
 
 function _clip_infinite!(pts, p, bbox)
     lastoutsidecode = 0 
@@ -517,6 +662,19 @@ function _clip_infinite!(pts, p, bbox)
                 _add_pt(pts, p1b) 
                 _add_pt(pts, p2)
                 firstout2incode = _regioncode(p1b, bbox)
+            else # it's possible the incoming ray goes through
+                # the bbox entirely...
+                if intersect_ray_bbox(p2, p1 .- p2, bbox)
+                    p2b,p1b = dual_intersections(p2, p1 .- p2, bbox) 
+                    @assert isfinite(p2b[1]) && isfinite(p1b[1]) 
+                    
+                    _add_pt(pts, p1b)
+                    _add_pt(pts, p2b)
+
+                    closedoutside=false 
+                    firstout2incode = _regioncode(p1b, bbox)
+                    lastoutsidecode = _regioncode(p2b, bbox)
+                end
             end
         else
             if c1 == 0 && c2 == 0 
@@ -562,6 +720,9 @@ function _clip_infinite!(pts, p, bbox)
                             _add_pt(pts, p1b)
                             _add_bbox_points(pts, c1b, c2b, p, bbox)
                             _add_pt(pts, p2b)
+                            if firstout2incode == 0 
+                                firstout2incode = c1b
+                            end
                         end
                         lastoutsidecode = c2b
                         closedoutside = false 
@@ -578,25 +739,35 @@ function _clip_infinite!(pts, p, bbox)
     # direction but from p2 instead of p1 
     ray = lastp2 .- lastp1 # compute the p1 to p2 direction 
     ptail = lastp2  # now same ray but from p2 instead 
-    # now project this to the boundar
-    doadd, padd = projectray(ptail, ray, bbox)
-    if doadd
-        _add_pt(pts, padd)
-        ptail = padd 
+    # now project this to the boundary
+
+    # check if ptail -> ray 
+    #if intersect_ray_bbox(lastp2, lastp2 .+ ray, )
+
+    #doadd, padd = projectray_short(ptail, ray, bbox)
+    if intersect_ray_bbox(ptail, ray, bbox) # it's possible this is a dual intersection scenario...
+        p1b, p2b = dual_intersections(ptail, ray, bbox) 
+
+        if isfinite(p1b[1])
+            if firstout2incode == 0 # then we haven't "come in" yet
+                firstout2incode = _regioncode(p1b, bbox) 
+            end
+            _add_pt(pts, p1b)
+            ptail = p1b 
+        end
+        if isfinite(p2b[1]) 
+            _add_pt(pts, p2b)
+            ptail = p2b
+        end 
     end 
-    
+
     ctail = _regioncode(ptail, bbox)
     # need to add this point att then
     if firstout2incode == 0 
         # we never came in to the bbox 
-        xmin,ymin,xmax,ymax = bbox 
-        if contains(p, (0.5*xmin+0.5*xmax,0.5*ymin + 0.5*ymax)) 
-            # then we need to add everything!
-            _add_pt(pt, (xmin,ymin))
-            _add_pt(pt, (xmax,ymin))
-            _add_pt(pt, (xmax,ymax))
-            _add_pt(pt, (xmin,ymax))
-        end 
+        # this _could_ mean the polygon is entirely inside...
+        # so test if the entire bbox is inside the polygon
+        _test_and_add_bbox(pts, p, bbox)
     else
         _add_bbox_points(pts, ctail, firstout2incode, p, bbox)
     end 
