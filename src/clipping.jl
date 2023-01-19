@@ -21,7 +21,7 @@ function margin_bbox(t::AbstractDelaunatorData, xmargin::Real, ymargin::Real)
     if abs(ysize) == 0 
         ysize = one(typeof(ysize))
     end 
-    return (t._minxy[1]-xmargin*xsize, t._minxy[2]-ymargin*ysize), (t._maxxy[1]+xmargin*xsize, t._maxxy[2]+ymargin*ysize)
+    return t._minxy[1]-xmargin*xsize, t._minxy[2]-ymargin*ysize, t._maxxy[1]+xmargin*xsize, t._maxxy[2]+ymargin*ysize
 end 
 
 function canonicalize_bbox(p, bbox)
@@ -65,7 +65,7 @@ for i in eachindex(t)
             push!(ppts, ppts[ind+1]) # close the polygon
         end 
     end 
-    push!(ppts, NaN) # add the NaN separator 
+    push!(ppts, (NaN,NaN)) # add the NaN separator 
 end 
 ```
 

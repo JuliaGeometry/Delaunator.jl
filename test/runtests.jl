@@ -39,6 +39,19 @@ include("iterators.jl")
 include("clipping.jl")
 end 
 
+@testset "helpers" begin
+    @testset "PointsFromMatrix" begin 
+        A = reshape(1:20, 4, 5)
+        pts = PointsFromMatrix(A)
+        @test pts == vec(reinterpret(Tuple{Int,Int},A[1:2,:]))
+
+        pts = PointsFromMatrix(A, 3, 4)
+        @test pts == vec(reinterpret(Tuple{Int,Int},A[3:4,:]))
+
+        @test_throws DimensionMismatch pts = PointsFromMatrix(A, 7, 8)
+    end 
+end
+
 # test('triangulates plain array', (t) => {
 #     const d = new Delaunator([].concat(...points));
 #     t.same(d.triangles, Delaunator.from(points).triangles);
@@ -211,8 +224,7 @@ end
 
 function validate_clippedpolys(t)
     # make a bounding box that includes everything 
-    bmin,bmax = Delaunator.margin_bbox(t, 0.05)
-    bbox = bmin...,bmax...
+    bbox = Delaunator.margin_bbox(t, 0.05)
     for i in eachindex(t) # for each point
         p = dualcell(t, i)
         cpts = clippedpoly(p, bbox)

@@ -15,7 +15,7 @@
               push!(ppts, ppts[ind+1]) # close the polygon
           end 
       end 
-      push!(ppts, NaN) # add the NaN separator 
+      push!(ppts, (NaN,NaN)) # add the NaN separator 
   end 
 end 
 

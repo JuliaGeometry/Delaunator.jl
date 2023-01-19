@@ -7,10 +7,21 @@ end
 """
     PointsFromMatrix(A [,i1=1,i2=2])
 
-Create an interface to a matrix type A to extract points from each column of A.
-The optional values i1 and i2 give the row indices of the points in the column. 
-This input can be used to transparently map a matrix into a Delaunator set of
-points. (There is no copying involved)
+This implicitly extracts 2d point tuples from a matrix
+using row indices i1 and i2 for the coordinates. The columns
+of the matrix because individual points. 
+
+    PointsFromMatrix(A) == vec(reinterpret(Tuple{Int,Int},A[1:2,:]))
+
+This function can be used to transparently map a matrix into a Delaunator set of
+points. (There is no copying involved).
+
+Example
+-------
+```
+A = reshape(1:20, 4, 5)
+rval = triangulate(PointsFromMatrix(A))) # uses A[1:2,:]
+````
 """
 function PointsFromMatrix(A::T) where T <: AbstractMatrix 
     1 in axes(A,1) || throw(DimensionMismatch("1 must be in axes(A,1) (does A have enough rows?)"))
