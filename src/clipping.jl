@@ -1,10 +1,3 @@
-
-# allow us to use the bounding box api for generic tuple bounding boxes... 
-#import Base.maximum 
-#origin(bbox::Tuple{Tuple{FT,FT},Tuple{FT,FT}}) where FT = bbox[1]
-#maximum(bbox::Tuple{Tuple{FT,FT},Tuple{FT,FT}}) where FT = bbox[2]
-
-
 """
     bbox = margin_bbox(t, [margin])
     bbox = margin_bbox(t, xmargin, ymargin)
@@ -28,6 +21,7 @@ function canonicalize_bbox(p, bbox)
     FloatType = eltype(eltype(p))
     FloatType.(bbox)
 end 
+
 """
     clippedpoly(p::InfinitePolygon, bbox; [closed=true])
     clippedpoly!(pts, p::InfinitePolygon, bbox) 
@@ -38,7 +32,8 @@ polygon clipped to the bounding box. The set of points will
 be closed (where the first point is equal to the last) if the
 closed=true option is set. The set of points _may_ be closed
 even if this isn't set. Using closed=true results in simpler
-behavior. This is not an option on the mutating version, see below. 
+behavior. This is not an option on the mutating version, see below
+for how to get this functionality.  
 
 The mutating version will update the pts array by using
     - `push!(pts, <newpt>)` 
@@ -69,7 +64,7 @@ for i in eachindex(t)
 end 
 ```
 
-
+See also [`dualcell`](@ref). 
 """
 :clippedpoly, :clippedpoly!
 function clippedpoly(p::InfinitePolygon, bbox; closed::Bool=true)
@@ -226,6 +221,10 @@ Compute intersections between the bbox and a point
 and ray combo. Or on the line between two points. 
 For a line intersection, use tmin=0, tmax=1.
 For a ray intersection, use tmin=0, tmax=Inf. 
+
+This will return the origin point (pt) if there 
+are no intersections with the bbox. This will return
+a duplicated point if there is only a single intersection 
 """ 
 function bbox_intersection(pt, ray, bbox; tmin=0, tmax=Inf)
     # we can have at most two intersections...
@@ -264,7 +263,7 @@ function bbox_intersection(pt, ray, bbox; tmin=0, tmax=Inf)
     end
 
     t = (ymax - y0) / vy 
-    if t >= 0 
+    if t >= tmin && t <= tmax  
         # check that this is valid...
         x,y = x0 + t*vx, ymax
         if xmin <= x <= xmax
@@ -280,7 +279,7 @@ function bbox_intersection(pt, ray, bbox; tmin=0, tmax=Inf)
     end
 
     t = (xmin - x0) / vx
-    if t >= 0 
+    if t >= tmin && t <= tmax  
         # check that this is valid...
         x,y = xmin, y0 + t*vy
         if ymin <= y <= ymax 
@@ -296,7 +295,7 @@ function bbox_intersection(pt, ray, bbox; tmin=0, tmax=Inf)
     end
 
     t = (xmax - x0) / vx
-    if t >= 0 
+    if t >= tmin && t <= tmax  
         # check that this is valid...
         x,y = xmax, y0 + t*vy
         if ymin <= y <= ymax 
@@ -324,6 +323,8 @@ function bbox_intersection(pt, ray, bbox; tmin=0, tmax=Inf)
         return (x1,y1),(x2,y2)
     end 
 end 
+
+
 
 function dual_intersections(pt, ray, bbox) 
     xmin,ymin,xmax,ymax = bbox 
@@ -876,18 +877,3 @@ function _clip_infinite!(pts, p, bbox)
     
     return pts
 end 
-
-#=
-function _clip_finite(p, bbox)
-    lowerleft = origin(bbox)
-    upperright = maximum(bbox)
-    
-    for p in poly.points
-        if _inside_bbox(p, lowerleft, upperright)
-
-        else
-            lastoutside = p 
-        end 
-    end 
-end 
-=#

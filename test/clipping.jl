@@ -88,3 +88,10 @@ end
     end 
 
 end 
+
+@testset "bbox intersections" begin
+  # make sure we don't intersect ...
+  @test Delaunator.bbox_intersection((5.0,0.0), (-1.0,0.0), (-2.0,-2.0,2.0,2.0); tmin=0, tmax=1) == ((5.0, 0.0), (5.0, 0.0))
+  # but now we do
+  @test Delaunator.bbox_intersection((5.0,0.0), (-1.0,0.0), (-2.0,-2.0,2.0,2.0); tmin=0, tmax=Inf) == ((2.0, 0.0), (-2.0, 0.0))
+end
