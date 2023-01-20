@@ -21,18 +21,10 @@ function tsort(t::Tuple{I,I,I}) where {I<:Integer}
 end 
 
 @testset "simple inputs" begin 
-    @test tsort.(Delaunator.delaunator!([[0, 1], [1, 0], [1, 1]]).triangles) == [(1,2,3)]
-    @test tsort.(Delaunator.delaunator!([[0, 1], [1, 0], [0, 0], [1, 1]]).triangles) == [(1,2,3),(1,2,4)]
-    Delaunator.delaunator!([[516, 661], [369, 793], [426, 539], [273, 525], [204, 694], [747, 750], [454, 390]])
+    @test tsort.(triangulate([[0, 1], [1, 0], [1, 1]]).triangles) == [(1,2,3)]
+    @test tsort.(triangulate([[0, 1], [1, 0], [0, 0], [1, 1]]).triangles) == [(1,2,3),(1,2,4)]
+    triangulate([[516, 661], [369, 793], [426, 539], [273, 525], [204, 694], [747, 750], [454, 390]])
 end 
-
-
-# import points from './fixtures/ukraine.json';
-# import issue13 from './fixtures/issue13.json';
-# import issue43 from './fixtures/issue43.json';
-# import issue44 from './fixtures/issue44.json';
-# import robustness1 from './fixtures/robustness1.json';
-# import robustness2 from './fixtures/robustness2.json';
 
 points = map(x->Int.(x), JSON.parsefile("fixtures/ukraine.json"))
 issue13 = map(x->Float64.(x), JSON.parsefile("fixtures/issue13.json"))
@@ -40,6 +32,25 @@ issue43 = map(x->Float64.(x), JSON.parsefile("fixtures/issue43.json"))
 issue44 = map(x->Float64.(x), JSON.parsefile("fixtures/issue44.json"))
 robustness1 = map(x->Float64.(x), JSON.parsefile("fixtures/robustness1.json"))
 robustness2 = map(x->Float64.(x), JSON.parsefile("fixtures/robustness2.json"))
+
+include("iterators.jl")
+
+@testset "clipping" begin 
+include("clipping.jl")
+end 
+
+@testset "helpers" begin
+    @testset "PointsFromMatrix" begin 
+        A = reshape(1:20, 4, 5)
+        pts = PointsFromMatrix(A)
+        @test pts == vec(reinterpret(Tuple{Int,Int},A[1:2,:]))
+
+        pts = PointsFromMatrix(A, 3, 4)
+        @test pts == vec(reinterpret(Tuple{Int,Int},A[3:4,:]))
+
+        @test_throws DimensionMismatch pts = PointsFromMatrix(A, 7, 8)
+    end 
+end
 
 # test('triangulates plain array', (t) => {
 #     const d = new Delaunator([].concat(...points));
@@ -114,7 +125,7 @@ robustness2 = map(x->Float64.(x), JSON.parsefile("fixtures/robustness2.json"))
 
 @testset "empty triangulation from all-collinear" begin 
     pts = [Point2f(0,0), Point2f(1,0), Point2f(3,0), Point2f(2,0)]
-    d = Delaunator.delaunator!(pts)
+    d = triangulate(pts)
     @test isempty(d.triangles)
     x = Int.(d.hull)
     @test Int.(collect(d.hull)) == [1, 2, 4, 3]
@@ -161,6 +172,13 @@ function validate_halfedges(d)
     return true
 end 
 
+function validate_dualcells(t)
+    for i in eachindex(t) # for each point
+        p = dualcell(t, i)
+        @test contains(p, t.points[i]) == true 
+    end
+end 
+
 function hull_area(points, d)
     j = lastindex(d.hull)
     hull_areas = Float64[] 
@@ -204,13 +222,35 @@ function validate_area(points, d)
     @test abs(hullarea - triarea)/abs(hullarea) <= 2*eps(Float64)
 end
 
+function validate_clippedpolys(t)
+    # make a bounding box that includes everything 
+    bbox = Delaunator.margin_bbox(t, 0.05)
+    for i in eachindex(t) # for each point
+        p = dualcell(t, i)
+        cpts = clippedpoly(p, bbox)
+        if last(cpts) == first(cpts)
+            cpts = cpts[1:end-1]
+        end 
+        FT = eltype(eltype(cpts))
+        # make a finite polygon with all the points
+        cp = Delaunator.InfinitePolygon(cpts, 
+            (zero(FT),zero(FT)),(zero(FT),zero(FT)))
+        @test contains(cp, t.points[i]) == true 
+    end
+end 
 
-function validate(points, d)
+function validate(points, d; skip_dualcell=false, skip_clipped=false)
     @test validate_halfedges(d) == true
     validate_area(points, d)
+    if !skip_dualcell
+        validate_dualcells(d) 
+        if !skip_clipped
+            validate_clippedpolys(d)
+        end 
+    end 
 end
 
-validate(points) = validate(points, Delaunator.delaunator!(points))
+validate(points; kwargs...) = validate(points, triangulate(points); kwargs...)
 
 @testset "simple inputs" begin
     pts = [[0,0],[0,1],[1,0]]
@@ -231,16 +271,17 @@ end
 # });
 
 @testset "js-delaunator robustness" begin
+    # TODO, fix 
     pts = robustness1
-    validate(pts)
-    validate(map(x->(x[1]/1e9, x[2]/1e9), pts))
-    validate(map(x->(x[1]/100, x[2]/100), pts))
-    validate(map(x->(x[1]*100, x[2]*100), pts))
-    validate(map(x->(x[1]*1e9, x[2]*1e9), pts))
+    validate(pts; skip_dualcell=true)
+    validate(map(x->(x[1]/1e9, x[2]/1e9), pts), skip_dualcell=true)
+    validate(map(x->(x[1]/100, x[2]/100), pts), skip_dualcell=true)
+    validate(map(x->(x[1]*100, x[2]*100), pts), skip_dualcell=true)
+    validate(map(x->(x[1]*1e9, x[2]*1e9), pts), skip_dualcell=true)
 
     pts = robustness2
-    validate(pts)
-    validate(pts[1:100])
+    validate(pts, skip_dualcell=true)
+    validate(pts[1:100],skip_dualcell=true)
 end
 
 
