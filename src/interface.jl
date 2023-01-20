@@ -477,17 +477,19 @@ This is designed for quick graphics applications and speed rather than exact com
 
 Inputs
 ------
-- `points` is any type that has integer indexing and length supported. In addition, `p = points[i]` should
-be a type where `p[1]` and `p[2]` are the x, y coordinates of p. Or you need to define the functions 
-`Delaunator.getX(p), Delaunator.getY(p)` for your own type p. 
+- `points` is any type that has integer indexing and length supported. In addition, `p = points[i]` should 
+    be a type where `p[1]` and `p[2]` are the x, y coordinates of p. Or you need to define the functions 
+    `Delaunator.getX(p), Delaunator.getY(p)` for your own type p. 
 
-    If you wish to use a a matrix 
+    If you wish to use a a matrix to give the point information, [`PointsFromMatrix`](@ref)
 
-- `tol` is used to determine when points are sufficiently close not to include.
+- `tol` is used to determine when points are sufficiently close not to include
 
 Return value
 ------------
 A triangulation, with methods to explore edges, hull points, dual cells.
+
+See also [`basictriangulation`](@ref)
 """
 triangulate(points; kwargs...) = triangulate(Float64, points; kwargs... )
 triangulate(::Type{FloatType}, points; kwargs...) where FloatType = triangulate(Int32, FloatType, points; kwargs...)
