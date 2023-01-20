@@ -91,7 +91,12 @@ end
 
 @testset "bbox intersections" begin
   # make sure we don't intersect ...
-  @test Delaunator.bbox_intersection((5.0,0.0), (-1.0,0.0), (-2.0,-2.0,2.0,2.0); tmin=0, tmax=1) == ((5.0, 0.0), (5.0, 0.0))
+  @test Delaunator.bbox_intersection((5.0,0.0), (-1.0,0.0), (-2.0,-2.0,2.0,2.0); tmin=0, tmax=1)[1:2] == ((5.0, 0.0), (5.0, 0.0))
   # but now we do
-  @test Delaunator.bbox_intersection((5.0,0.0), (-1.0,0.0), (-2.0,-2.0,2.0,2.0); tmin=0, tmax=Inf) == ((2.0, 0.0), (-2.0, 0.0))
+  @test Delaunator.bbox_intersection((5.0,0.0), (-1.0,0.0), (-2.0,-2.0,2.0,2.0); tmin=0, tmax=Inf)[1:2] == ((2.0, 0.0), (-2.0, 0.0))
+
+  @test Delaunator.bbox_intersection((0.0,1.0),(1.0,-1.0), (-0.5,-0.5,0.5,0.5)) == ((0.5,0.5),(0.5,0.5),0.5,0.5)
+
+  # this is starting from a point on the bbox 
+  @test Delaunator.bbox_intersection((0.5,0.0),(1.0,1.0), (-0.5,-0.5,0.5,0.5))[3] == 0.0 
 end
