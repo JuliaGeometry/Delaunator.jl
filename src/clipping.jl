@@ -221,6 +221,110 @@ function intersect_ray_bbox(p1, ray, bbox)
     end 
 end 
 
+"""
+Compute intersections between the bbox and a point
+and ray combo. Or on the line between two points. 
+For a line intersection, use tmin=0, tmax=1.
+For a ray intersection, use tmin=0, tmax=Inf. 
+""" 
+function bbox_intersection(pt, ray, bbox; tmin=0, tmax=Inf)
+    # we can have at most two intersections...
+
+    xmin,ymin,xmax,ymax = bbox 
+    vx,vy = ray
+    x0,y0 = pt 
+    t1 = Inf
+    t2 = Inf 
+    c = Inf 
+
+    make_negative_inf(x) = x < 0 ? Inf : x 
+
+    t1 = Inf
+    t2 = Inf
+    x1,y1,x2,y2 = Inf,Inf,Inf,Inf
+
+    # try the line on ymin
+    #handle_dimsion()
+    #t1,t2,x1,y1,x1,y2 = 
+
+    t = (ymin - y0) / vy 
+    if t >= tmin && t <= tmax  
+        # check that this is valid...
+        x,y = x0 + t*vx, ymin
+        if xmin <= x <= xmax
+            if t1 < Inf
+                # assign to t2 
+                t2 = t
+                x2,y2 = x,y
+            else
+                t1 = t
+                x1,y1 = x,y
+            end
+        end
+    end
+
+    t = (ymax - y0) / vy 
+    if t >= 0 
+        # check that this is valid...
+        x,y = x0 + t*vx, ymax
+        if xmin <= x <= xmax
+            if t1 < Inf
+                # assign to t2 
+                t2 = t
+                x2,y2 = x,y
+            else
+                t1 = t
+                x1,y1 = x,y
+            end
+        end
+    end
+
+    t = (xmin - x0) / vx
+    if t >= 0 
+        # check that this is valid...
+        x,y = xmin, y0 + t*vy
+        if ymin <= y <= ymax 
+            if t1 < Inf
+                # assign to t2 
+                t2 = t
+                x2,y2 = x,y
+            else
+                t1 = t
+                x1,y1 = x,y
+            end
+        end
+    end
+
+    t = (xmax - x0) / vx
+    if t >= 0 
+        # check that this is valid...
+        x,y = xmax, y0 + t*vy
+        if ymin <= y <= ymax 
+            if t1 < Inf
+                # assign to t2 
+                t2 = t
+                x2,y2 = x,y
+            else
+                t1 = t
+                x1,y1 = x,y
+            end
+        end
+    end
+
+    if t1 > t2 
+        # swap
+        x1,y1,x2,y2 = x2,y2,x1,y1
+        t1,t2 = t2,t1 
+    end 
+    if t1 == Inf
+        return (x0,y0),(x0,y0)
+    elseif t2 == Inf
+        return (x1,y1),(x1,y1)
+    else
+        return (x1,y1),(x2,y2)
+    end 
+end 
+
 function dual_intersections(pt, ray, bbox) 
     xmin,ymin,xmax,ymax = bbox 
     vx,vy = ray
@@ -743,11 +847,9 @@ function _clip_infinite!(pts, p, bbox)
 
     # check if ptail -> ray 
     #if intersect_ray_bbox(lastp2, lastp2 .+ ray, )
-
     #doadd, padd = projectray_short(ptail, ray, bbox)
     if intersect_ray_bbox(ptail, ray, bbox) # it's possible this is a dual intersection scenario...
-        p1b, p2b = dual_intersections(ptail, ray, bbox) 
-
+        p1b, p2b = bbox_intersection(ptail, ray, bbox) 
         if isfinite(p1b[1])
             if firstout2incode == 0 # then we haven't "come in" yet
                 firstout2incode = _regioncode(p1b, bbox) 

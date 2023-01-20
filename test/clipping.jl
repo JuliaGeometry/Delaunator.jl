@@ -59,6 +59,12 @@ end
   @test pts==([(-2.0,-2.0),(2.0,-2.0),(2.0,2.0),(-2.0,2.0),(-2.0,-2.0)])
 end 
 
+function in_bbox(pt, bbox)
+  xmin,ymin,xmax,ymax = bbox 
+  return xmin <= pt[1] <= xmax && ymin <= pt[2] <= ymax 
+end 
+
+
 @testset "previous bugs" begin 
     # this is a horizontal ray on the x-axis... 
     p = Delaunator.InfinitePolygon([(-5.0,0.0)], (-1.0,0.0), (1.0,0.0))
@@ -69,4 +75,16 @@ end
     p = Delaunator.InfinitePolygon([(-5.0,0.0)], (1.0,0.0), (-1.0,0.0))
     pts = clippedpoly(p, (-2,-2,2,2))
     @test pts==([(2.0,0.0),(-2.0,0.0),(-2.0,-2.0),(2.0,-2.0),(2.0,0.0)])
+
+
+    ipts = randn(StableRNG(1), ComplexF64, 100)
+    ipts = sqrt.(abs.(ipts)).*ipts./abs.(ipts)
+    pts = Point2f.(zip(real(ipts),imag(ipts)))
+    t = triangulate(pts)
+    bbox = margin_bbox(t, 0.05) 
+    ppts = clippedpoly(dualcell(t, 31), bbox)
+    for pt in ppts 
+      @test in_bbox(pt, bbox) 
+    end 
+
 end 
