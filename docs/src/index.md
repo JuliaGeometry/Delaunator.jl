@@ -56,9 +56,4 @@ findtriangle(t, p)
 
 
 
-```@index
-```
 
-```@autodocs
-Modules = [Delaunator]
-```
