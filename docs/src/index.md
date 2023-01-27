@@ -36,7 +36,6 @@ bt, cdata = basictriangulation(points; [maxpoints=Integer]) # initialize data st
 bt, cdata = update!(bt, points, cdata) # after the points have been changed, may incur allocations
 h = gethull(bt, cdata)
 index = index_halfedges(bt, cdata)
-!(cc, bt) # compute  
 ```
 
 Planned implementations
@@ -51,7 +50,7 @@ cellneighbors(t, i, [bbox]) # get cell neighbors given bbox
 # searching methods
 nearestpoint(t, p)
 findtriangle(t, p)
-``
+```
 
 
 
