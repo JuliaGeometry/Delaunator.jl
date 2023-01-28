@@ -36,9 +36,11 @@ behavior. This is not an option on the mutating version, see below
 for how to get this functionality.  
 
 The mutating version will update the pts array by using
+
     - `push!(pts, <newpt>)` 
     - `last(pts)`
     - `isempty(pts)`
+    
 It will return the input type pts. 
 
 Example code
@@ -231,6 +233,7 @@ Walk the corners by their region codes to find points
 on the bounding box to add as we move from outside
 the bbox back inside...
 
+```
   # This is the order of codes in counter-clockwise order. 
   # Top-Left        Top         Top-Right
   # 1001     <-     1000    <-  1010
@@ -244,6 +247,7 @@ the bbox back inside...
   # Bottom Left   Bottom       Bottom right 
   # 
   # bottom right means x >= xmax (0010) and y <= ymin (0100)
+```  
 
 """
 function _add_bbox_points(pts, c0, c1, p, bbox)

@@ -21,7 +21,7 @@ Example
 ```
 A = reshape(1:20, 4, 5)
 rval = triangulate(PointsFromMatrix(A))) # uses A[1:2,:]
-````
+```
 """
 function PointsFromMatrix(A::T) where T <: AbstractMatrix 
     1 in axes(A,1) || throw(DimensionMismatch("1 must be in axes(A,1) (does A have enough rows?)"))

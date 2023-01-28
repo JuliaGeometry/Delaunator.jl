@@ -3,7 +3,13 @@
 """
     InfinitePolygon
 
-fields
+This is the type we use to represent dual cells / Voronoi cells.
+It's a possibly infinite polygon stored as an array of points with
+optional head and tail rays. 
+
+Methods
+
+- [`segments`](@ref) to get the line segments for the polygon.
 """    
 struct InfinitePolygon{ArrayType,ElType}
     points::ArrayType
@@ -198,7 +204,11 @@ Base.isdone(it::SegmentsIterator, state) = state[3] == true
     segments(p::InfinitePolygon; [dist = eps()])
 
 Return an iterator over linesegments involved in the polygon.
-If the polygon is infinite, then this will not be closed.
+If the polygon is infinite, then this will not be closed and the
+first two points will be along the incoming ray and the last two
+points will be along the outgoing ray (each will be an arbitrary 
+length along this ray)
+
 If the polygon is finite, then it will be closed.
 """
 function segments(p::InfinitePolygon; dist::Real = eps(eltype(eltype(p))))
@@ -210,7 +220,15 @@ end
     dualcell(t, i)
     dualcell(t, centers, i)
 
-Return the finite or infinite polygon description 
+Return the finite or infinite polygon description of the dual cell
+to a given point index in the triangulation. The dual cell is the 
+Voronoi cell to a Delaunay triangulation. 
+
+The default usage uses the circumcenters of the Delaunay triangles 
+as the coordinates of the Voroni vertices. However, 
+you can override this by giving another collection of centers. 
+The number of centers must be equal to the number 
+of triangles. 
 """    
 dualcell(t::Triangulation, i::Integer) = dualcell(t, t.circumcenters, i)
 function dualcell(t::Triangulation, centers, i::Integer)
@@ -363,4 +381,3 @@ function truncatedcircumcenter(x1::FloatType, y1::FloatType,
     =#
     return circumcenter(x1,y1,x2,y2,x3,y3)
 end 
-
