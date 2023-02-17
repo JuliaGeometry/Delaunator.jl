@@ -1,9 +1,7 @@
 name = "Delaunator"
 uuid = "466f8f70-d5e3-4806-ac0b-a54b75a91218"
 authors = ["David Gleich", "Steve Kelly"]
-version = "0.1.0"
-
-[deps]
+version = "0.1.1"
 
 [compat]
 julia = "1"
