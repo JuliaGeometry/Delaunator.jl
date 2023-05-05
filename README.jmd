@@ -12,7 +12,7 @@ A port of [Mapbox's Delaunator](https://github.com/mapbox/delaunator) to Julia.
 
 The Delaunator algorithm computes a simple 2d triangulation of an arbitrary set of points in the plane _quickly_. This package provides a Julia implementation of the algorithm along with a number of supporting routines that operate on the Delaunator data structures. 
 
-On a 2020 M1 Macbook Air, the Deluantor.jl package will triangulate a million points in about 500ms including computing circumcenters for the triangles for the closest site diagram. 
+On a 2020 M1 Macbook Air, the `Delaunator.jl` package will triangulate a million points in about 500ms, including computing circumcenters for the triangles for the closest site diagram. 
 
 ```julia
 using GeometryBasics, Delaunator, StableRNGs, CairoMakie, Statistics, LinearAlgebra
