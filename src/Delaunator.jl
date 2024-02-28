@@ -5,7 +5,7 @@ export triangulate, basictriangulation, update!, triangles, points, inhull
 
 include("quicksort.jl")
 include("geometry.jl")
-export isinfinite, dualcell, firstpoint, lastpoint, segments
+export isinfinite, dualcell, firstpoint, lastpoint, segments, cellarea
 
 include("clipping.jl")
 export clippedpoly, clippedpoly!, margin_bbox

@@ -52,6 +52,17 @@ end
     end 
 end
 
+@testset "cellarea" begin
+    # Test Infinite case
+    p = Delaunator.InfinitePolygon([(-5.0,0.0)], (0.0,-1.0), (0.0,1.0))
+    @test cellarea(p) == Inf
+    # Test Degenerate (line) case
+    p = Delaunator.InfinitePolygon([(-5.0,0.0), (5.0, 0.0)], (0.0, 0.0), (0.0, 0.0))
+    # Test normal case
+    p = Delaunator.InfinitePolygon([(-1.0,-1.0),(1.0,-1.0),(1.0,1.0),(-1.0,1.0)], (0.0,0.0), (0.0,0.0))
+    @test cellarea(p) == 4.0
+end
+
 # test('triangulates plain array', (t) => {
 #     const d = new Delaunator([].concat(...points));
 #     t.same(d.triangles, Delaunator.from(points).triangles);
