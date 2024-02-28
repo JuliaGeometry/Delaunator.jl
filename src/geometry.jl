@@ -244,6 +244,35 @@ function dualcell(t::Triangulation, centers, i::Integer)
             raystart, rayend)
 end 
 
+"""
+    cellarea(p)
+
+Compute the area of a possibly infinite polygon.
+"""
+function cellarea(p::InfinitePolygon)
+    if isinfinite(p)
+        return typemax(eltype(eltype(p)))
+    # Area of a line is zero
+    elseif length(p.points) < 3
+        return zero(eltype(eltype(p)))
+    else
+        # Compute the area of the polygon using the shoelace formula using iterators
+        area = zero(eltype(eltype(p)))
+        previous, ite = iterate(p.points)
+        while true
+            el = iterate(p.points, ite)
+            if isnothing(el)
+                break
+            end
+            current, ite = el
+            area += (previous[1] + current[1]) * (previous[2] - current[2])
+            previous = current
+        end
+        current = first(p.points)
+        return 0.5 * abs(area + (previous[1] + current[1]) * (previous[2] - current[2]))
+    end
+end
+
 # monotonically increases with real angle, but doesn't need expensive trigonometry
 function pseudoAngle(dx, dy)
     p = dx / (abs(dx) + abs(dy))
