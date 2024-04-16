@@ -1,4 +1,5 @@
 using Delaunator
+using Pkg
 using Test
 using JSON, GeometryBasics
 
@@ -341,8 +342,17 @@ end
 end 
 
 import Aqua
-Aqua.test_all(Delaunator)
+@testset "Aqua tests" begin 
+    Aqua.test_all(Delaunator)
+end
 
-import JET
-JET.report_package(Delaunator)
+if VERSION >= v"1.8"
+    @testset "JET tests" begin
+        import JET
+        projectinfo = Pkg.project()
+        deps = Pkg.dependencies()
+        @assert deps[projectinfo.dependencies["JET"]].version >= v"0.7.0"
+        JET.report_package(Delaunator)
+    end
+end
 
