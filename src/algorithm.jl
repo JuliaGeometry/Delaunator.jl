@@ -87,7 +87,7 @@ function _delaunator!(
     i2x,i2y = point(FloatType,coords,i2)
 
     # swap the order of the seed points for counter-clockwise orientation
-    if orient(i0x, i0y, i1x, i1y, i2x, i2y)
+    if robust_orient(i0x, i0y, i1x, i1y, i2x, i2y)
         i = i1
         x = i1x
         y = i1y
@@ -157,7 +157,7 @@ function _delaunator!(
         start = hullPrev[start]
         e = start
         q = hullNext[e]
-        while !orient(x, y, point(FloatType,coords,e)..., point(FloatType,coords,q)...)
+        while !robust_orient(x, y, point(FloatType,coords,e)..., point(FloatType,coords,q)...)
             e = q
             if e == start
                 e = -1
@@ -180,7 +180,7 @@ function _delaunator!(
         # walk forward through the hull, adding more triangles and flipping recursively
         n = hullNext[e]
         q = hullNext[n]
-        while orient(x, y, point(FloatType,coords,n)..., point(FloatType,coords,q)...)
+        while robust_orient(x, y, point(FloatType,coords,n)..., point(FloatType,coords,q)...)
             trianglesLen = _addTriangle(_triangles, _halfedges, trianglesLen, n, i, q, hullTri[i], -1, hullTri[n])
             t = trianglesLen-3
             hullTri[i] = legalize(t + 2, _hullStart)
@@ -193,7 +193,7 @@ function _delaunator!(
         # walk backward from the other side, adding more triangles and flipping
         if e == start
             q = hullPrev[e]
-            while orient(x, y, point(FloatType,coords,q)...,  point(FloatType,coords,e)...)
+            while robust_orient(x, y, point(FloatType,coords,q)...,  point(FloatType,coords,e)...)
                 trianglesLen = _addTriangle(_triangles, _halfedges, trianglesLen, q, i, e, -1, hullTri[e], hullTri[q])
                 t = trianglesLen-3
                 legalize(t + 2, _hullStart)

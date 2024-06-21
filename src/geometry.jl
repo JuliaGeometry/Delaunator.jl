@@ -84,7 +84,7 @@ function _isright(pa, pb, pt)
     return (x2 - x1)*(y - y1) < (y2 - y1)*(x - x1)
 end 
 function _isleft(pa, pb, pt)
-    return orient(pa...,pb...,pt...)
+    return robust_orient(pa...,pb...,pt...)
 end 
 
 
