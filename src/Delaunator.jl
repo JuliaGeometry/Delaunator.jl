@@ -5,6 +5,7 @@ export triangulate, basictriangulation, update!, triangles, points, inhull
 
 include("quicksort.jl")
 include("geometry.jl")
+include("robust.jl")
 export isinfinite, dualcell, firstpoint, lastpoint, segments, cellarea
 
 include("clipping.jl")
