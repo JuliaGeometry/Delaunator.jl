@@ -302,6 +302,7 @@ function orient(rx, ry, qx, qy, px, py)
            orientIfSure(qx, qy, px, py, rx, ry) < 0
 end
 
+
 function inCircle(ax, ay, bx, by, cx, cy, px, py)
     dx = ax - px
     dy = ay - py
@@ -318,6 +319,7 @@ function inCircle(ax, ay, bx, by, cx, cy, px, py)
            dy * (ex * cp - bp * fx) +
            ap * (ex * fy - ey * fx) < 0
 end
+
 
 function circumradius(ax, ay, bx, by, cx, cy)
     dx = bx - ax

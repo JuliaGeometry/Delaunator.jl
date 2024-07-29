@@ -79,7 +79,8 @@ function _delaunator!(
 ) where {FloatType}
     #FloatType = eltype(_dists)
     n = length(coords)
-    legalize = (t,_hullStart)->_legalize(FloatType, t, _triangles, _halfedges, coords, edgeStack, hullPrev, hullTri, _hullStart)
+    incircle_mempool = incircle_cache() 
+    legalize = (t,_hullStart)->_legalize(FloatType, t, _triangles, _halfedges, coords, edgeStack, hullPrev, hullTri, _hullStart, incircle_mempool)
 
     i0, i1, i2 = seeds
     i0x,i0y = point(FloatType,coords,i0)
@@ -252,7 +253,7 @@ function _hashKey(x, y, cx, cy, _hashSize)
     return (floor(Int, pseudoAngle(x - cx, y - cy) * _hashSize) % _hashSize)+1
 end
 
-function _legalize(::Type{FloatType}, a, triangles, halfedges, coords, EDGE_STACK, hullPrev, hullTri, _hullStart) where {FloatType}
+function _legalize(::Type{FloatType}, a, triangles, halfedges, coords, EDGE_STACK, hullPrev, hullTri, _hullStart, mempool) where {FloatType}
 
     i = 1
     ar = 0
@@ -296,10 +297,11 @@ function _legalize(::Type{FloatType}, a, triangles, halfedges, coords, EDGE_STAC
         pl = triangles[al]
         p1 = triangles[bl]
 
-        illegal = inCircle(point(FloatType,coords,p0)..., 
-                           point(FloatType,coords,pr)..., 
-                           point(FloatType,coords,pl)..., 
-                           point(FloatType,coords,p1)...)
+        illegal = incircle(point(FloatType,coords,p0), 
+                           point(FloatType,coords,pr),
+                           point(FloatType,coords,pl),
+                           point(FloatType,coords,p1), 
+                           mempool) < 0 
 
         if illegal
             triangles[a] = p1
