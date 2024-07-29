@@ -2,9 +2,9 @@ using Delaunator
 using Pkg
 using Test
 using JSON, GeometryBasics
-using Supposition
 
 if VERSION >= v"1.8"
+    using Supposition
     # Supposition.jl needs 1.8
     include("supposition.jl")
 end
