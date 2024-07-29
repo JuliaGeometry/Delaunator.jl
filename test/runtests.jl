@@ -2,6 +2,9 @@ using Delaunator
 using Pkg
 using Test
 using JSON, GeometryBasics
+using Supposition
+
+include("supposition.jl")
 
 function tsort(t::Tuple{I,I,I}) where {I<:Integer}
     a,b,c = t
@@ -369,4 +372,3 @@ if VERSION >= v"1.8"
         JET.report_package(Delaunator)
     end
 end
-
