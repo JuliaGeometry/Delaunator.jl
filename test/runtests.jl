@@ -4,7 +4,10 @@ using Test
 using JSON, GeometryBasics
 using Supposition
 
-include("supposition.jl")
+if VERSION >= v"1.8"
+    # Supposition.jl needs 1.8
+    include("supposition.jl")
+end
 
 function tsort(t::Tuple{I,I,I}) where {I<:Integer}
     a,b,c = t
