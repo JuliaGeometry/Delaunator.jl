@@ -4,6 +4,7 @@ using Test
 using JSON, GeometryBasics
 
 if VERSION >= v"1.8"
+    Pkg.add("Supposition")
     using Supposition
     # Supposition.jl needs 1.8
     include("supposition.jl")
