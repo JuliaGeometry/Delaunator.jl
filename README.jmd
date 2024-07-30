@@ -134,7 +134,7 @@ There are a variety of other Delaunay and Voronoi packages in the Julia ecosyste
 
 - [`VoronoiDelaunay.jl`](https://github.com/JuliaGeometry/VoronoiDelaunay.jl)
 - [`VoronoiCells.jl`](https://github.com/JuliaGeometry/VoronoiCells.jl)
-- [`DelaunayTriangulation.jl`](https://github.com/DanielVandH/DelaunayTriangulation.jl)
+- [`DelaunayTriangulation.jl`](https://github.com/JuliaGeometry/DelaunayTriangulation.jl)
 - [`MiniQhull.jl`](https://github.com/gridap/MiniQhull.jl)
 - [`DirectQhull.jl`](https://github.com/JuhaHeiskala/DirectQhull.jl)
 
@@ -148,9 +148,8 @@ of floating point computations.
 - There is limited support for dual cells / Voronoi cells in `VoronoiDelaunay` and 
 a good deal of this functionality is provided by the package `VoronoiCells.jl`. 
 - The `DelaunayTriangulation.jl` package that 
-uses [`ExactPredicates.jl`](https://github.com/lairez/ExactPredicates.jl) to implement various 
-computational geometry tests. This package is under active development and implements a number 
-useful constrained Delaunay triangulations. 
+uses [`AdaptivePredicates.jl`](https://github.com/JuliaGeometry/AdaptivePredicates.jl) and [`ExactPredicates.jl`](https://github.com/lairez/ExactPredicates.jl) to implement various 
+computational geometry tests. This package is under active development and implements a number of methods for unconstrained and constrained Delaunay triangulations and Voronoi tessellations.
 
 In comparison, the `Delaunator.jl` package seeks to mirror the javascript d3-delaunay codes that give good
 enough triangulations for many pixel-level graphics applications and are fast for 2d problems, rather than those that 
