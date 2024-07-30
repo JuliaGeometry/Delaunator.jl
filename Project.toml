@@ -10,9 +10,9 @@ ExactPredicates = "2"
 GeometryBasics = "0.4"
 JET = "0.4, 0.7, 0.8"
 JSON = "0.21"
-Pkg = "1"
+Pkg = "<0.0.1, 1"
 StableRNGs = "1"
-Test = "1"
+Test = "<0.0.1, 1"
 
 julia = "1"
 
