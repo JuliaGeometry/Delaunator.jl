@@ -3,7 +3,10 @@ using Pkg
 using Test
 using JSON, GeometryBasics
 
-if VERSION >= v"1.8"
+envargs = get(()->"", ENV, "JULIA_ACTIONS_RUNTEST_ARGS")
+foreach(s->push!(ARGS,s), split(envargs,","))
+
+if VERSION >= v"1.8" && !("CI" in ARGS)
     Pkg.add("Supposition")
     using Supposition
     # Supposition.jl needs 1.8
