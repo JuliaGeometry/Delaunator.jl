@@ -1,4 +1,10 @@
 name: CI
+
+env:
+  OPENBLAS_NUM_THREADS: 1
+  OMP_NUM_THREADS: 1
+  JULIA_ACTIONS_RUNTEST_ARGS: CI
+
 on:
   pull_request:
     branches:
@@ -17,6 +23,7 @@ jobs:
         version:
           - '1.6'
           - '1.8'
+          - '1.10'
           #- 'nightly'
         os:
           - ubuntu-latest

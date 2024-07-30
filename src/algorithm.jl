@@ -79,7 +79,8 @@ function _delaunator!(
 ) where {FloatType}
     #FloatType = eltype(_dists)
     n = length(coords)
-    legalize = (t,_hullStart)->_legalize(FloatType, t, _triangles, _halfedges, coords, edgeStack, hullPrev, hullTri, _hullStart)
+    incircle_mempool = incircle_cache() 
+    legalize = (t,_hullStart)->_legalize(FloatType, t, _triangles, _halfedges, coords, edgeStack, hullPrev, hullTri, _hullStart, incircle_mempool)
 
     i0, i1, i2 = seeds
     i0x,i0y = point(FloatType,coords,i0)
@@ -87,7 +88,7 @@ function _delaunator!(
     i2x,i2y = point(FloatType,coords,i2)
 
     # swap the order of the seed points for counter-clockwise orientation
-    if orient(i0x, i0y, i1x, i1y, i2x, i2y)
+    if robust_orient(i0x, i0y, i1x, i1y, i2x, i2y)
         i = i1
         x = i1x
         y = i1y
@@ -157,7 +158,7 @@ function _delaunator!(
         start = hullPrev[start]
         e = start
         q = hullNext[e]
-        while !orient(x, y, point(FloatType,coords,e)..., point(FloatType,coords,q)...)
+        while !robust_orient(x, y, point(FloatType,coords,e)..., point(FloatType,coords,q)...)
             e = q
             if e == start
                 e = -1
@@ -180,7 +181,7 @@ function _delaunator!(
         # walk forward through the hull, adding more triangles and flipping recursively
         n = hullNext[e]
         q = hullNext[n]
-        while orient(x, y, point(FloatType,coords,n)..., point(FloatType,coords,q)...)
+        while robust_orient(x, y, point(FloatType,coords,n)..., point(FloatType,coords,q)...)
             trianglesLen = _addTriangle(_triangles, _halfedges, trianglesLen, n, i, q, hullTri[i], -1, hullTri[n])
             t = trianglesLen-3
             hullTri[i] = legalize(t + 2, _hullStart)
@@ -193,7 +194,7 @@ function _delaunator!(
         # walk backward from the other side, adding more triangles and flipping
         if e == start
             q = hullPrev[e]
-            while orient(x, y, point(FloatType,coords,q)...,  point(FloatType,coords,e)...)
+            while robust_orient(x, y, point(FloatType,coords,q)...,  point(FloatType,coords,e)...)
                 trianglesLen = _addTriangle(_triangles, _halfedges, trianglesLen, q, i, e, -1, hullTri[e], hullTri[q])
                 t = trianglesLen-3
                 legalize(t + 2, _hullStart)
@@ -252,7 +253,7 @@ function _hashKey(x, y, cx, cy, _hashSize)
     return (floor(Int, pseudoAngle(x - cx, y - cy) * _hashSize) % _hashSize)+1
 end
 
-function _legalize(::Type{FloatType}, a, triangles, halfedges, coords, EDGE_STACK, hullPrev, hullTri, _hullStart) where {FloatType}
+function _legalize(::Type{FloatType}, a, triangles, halfedges, coords, EDGE_STACK, hullPrev, hullTri, _hullStart, mempool) where {FloatType}
 
     i = 1
     ar = 0
@@ -296,10 +297,11 @@ function _legalize(::Type{FloatType}, a, triangles, halfedges, coords, EDGE_STAC
         pl = triangles[al]
         p1 = triangles[bl]
 
-        illegal = inCircle(point(FloatType,coords,p0)..., 
-                           point(FloatType,coords,pr)..., 
-                           point(FloatType,coords,pl)..., 
-                           point(FloatType,coords,p1)...)
+        illegal = incircle(point(FloatType,coords,p0), 
+                           point(FloatType,coords,pr),
+                           point(FloatType,coords,pl),
+                           point(FloatType,coords,p1), 
+                           mempool) < 0 
 
         if illegal
             triangles[a] = p1

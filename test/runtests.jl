@@ -3,6 +3,16 @@ using Pkg
 using Test
 using JSON, GeometryBasics
 
+envargs = get(()->"", ENV, "JULIA_ACTIONS_RUNTEST_ARGS")
+foreach(s->push!(ARGS,s), split(envargs,","))
+
+if VERSION >= v"1.8" && !("CI" in ARGS)
+    Pkg.add("Supposition")
+    using Supposition
+    # Supposition.jl needs 1.8
+    include("supposition.jl")
+end
+
 function tsort(t::Tuple{I,I,I}) where {I<:Integer}
     a,b,c = t
     if a <= b <= c
@@ -370,3 +380,5 @@ if VERSION >= v"1.8"
     end
 end
 
+println("Performance tests")
+include("perftest.jl")
