@@ -379,3 +379,6 @@ if VERSION >= v"1.8"
         JET.report_package(Delaunator)
     end
 end
+
+println("Performance tests")
+include("perftest.jl")
