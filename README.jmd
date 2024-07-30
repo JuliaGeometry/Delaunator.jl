@@ -134,7 +134,7 @@ There are a variety of other Delaunay and Voronoi packages in the Julia ecosyste
 
 - [`VoronoiDelaunay.jl`](https://github.com/JuliaGeometry/VoronoiDelaunay.jl)
 - [`VoronoiCells.jl`](https://github.com/JuliaGeometry/VoronoiCells.jl)
-- [`DelaunayTriangulation.jl`](https://github.com/DanielVandH/DelaunayTriangulation.jl)
+- [`DelaunayTriangulation.jl`](https://github.com/JuliaGeometry/DelaunayTriangulation.jl)
 - [`MiniQhull.jl`](https://github.com/gridap/MiniQhull.jl)
 - [`DirectQhull.jl`](https://github.com/JuhaHeiskala/DirectQhull.jl)
 
