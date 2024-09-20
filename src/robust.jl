@@ -345,8 +345,9 @@ end
   return Q
 end
 
-@inline setindex!!(tup::Tuple, value, index) = @inbounds Base.setindex(tup, value, index)
+@inline setindex!!(tup::Tuple, value, index) = @inbounds index > length(tup) ? tup : Base.setindex(tup, value, index)
 @inline setindex!!(tup::AbstractVector, value, index) = @inbounds Base.setindex!(tup, value, index)
+@inline safe_getindex(e, eindex, elen) = (eindex ≤ elen && eindex ≤ length(e)) ? @inbounds(e[eindex]) : zero(eltype(e)) # Shewchuk's code is relying on undefined behaviour from out-of-bounds access where we call this. We need to be careful.
 
 @inline function scale_expansion_zeroelim(elen::Int, e, b, ::Val{N})::Tuple{NTuple,Int} where {N} 
   h = ntuple(i -> zero(typeof(e[1])), Val(N))
@@ -396,78 +397,72 @@ end
 
 @inline function fast_expansion_sum_zeroelim(elen::Int, e, flen::Int, f, h)
   @inbounds begin
-    enow = e[1]
-    fnow = f[1]
-    eindex = findex = 1
-    if ((fnow > enow) == (fnow > -enow))
-      Q = enow
-      enow = e[eindex += 1]
-    else
-      Q = fnow
-      fnow = f[findex += 1]
-    end
-    hindex = 0
-    if ((eindex < elen) && (findex < flen)) # still < since pre-increment
-      if ((fnow > enow) == (fnow > -enow))
-        Qnew, hh = Fast_Two_Sum(enow, Q)
-        enow = e[eindex += 1]
+      enow = e[1]
+      fnow = f[1]
+      eindex = findex = 1
+      if (fnow > enow) == (fnow > -enow)
+          Q = enow 
+          eindex += 1 
+          enow = safe_getindex(e, eindex, elen)
       else
-        Qnew, hh = Fast_Two_Sum(fnow, Q)
-        fnow = f[findex += 1]
+          Q = fnow
+          findex += 1
+          fnow = safe_getindex(f, findex, flen)
       end
-      Q = Qnew
-      if hh != 0.0
-        #h[hindex+=1] = hh
-        h = setindex!!(h, hh, hindex+=1)
+      hindex = 1
+      if (eindex ≤ elen) && (findex ≤ flen)
+          if (fnow > enow) == (fnow > -enow)
+              Q, hh = Fast_Two_Sum(enow, Q)
+              eindex += 1
+              enow = safe_getindex(e, eindex, elen)
+          else
+              Q, hh = Fast_Two_Sum(fnow, Q)
+              findex += 1
+              fnow = safe_getindex(f, findex, flen)
+          end
+          if !iszero(hh)
+              h = setindex!!(h, hh, hindex)
+              hindex += 1
+          end
+          while (eindex ≤ elen) && (findex ≤ flen)
+              if (fnow > enow) == (fnow > -enow)
+                  Q, hh = Two_Sum(Q, enow)
+                  eindex += 1
+                  enow = safe_getindex(e, eindex, elen)
+              else
+                  Q, hh = Two_Sum(Q, fnow)
+                  findex += 1
+                  fnow = safe_getindex(f, findex, flen)
+              end
+              if !iszero(hh)
+                  h = setindex!!(h, hh, hindex)
+                  hindex += 1
+              end
+          end
       end
-
-      while (eindex < elen) && (findex < flen)  # still < since pre-increment
-        if (fnow > enow) == (fnow > -enow) 
-          Qnew, hh = Two_Sum(Q, enow)
-          enow = e[eindex += 1]
-        else 
-          Qnew, hh = Two_Sum(Q, fnow)
-          fnow = f[findex += 1]
-        end
-        Q = Qnew
-        if hh != 0.0
-          #h[hindex += 1] = hh
-          h = setindex!!(h, hh, hindex+=1)
-        end
+      while eindex ≤ elen
+          Q, hh = Two_Sum(Q, enow)
+          eindex += 1
+          enow = safe_getindex(e, eindex, elen)
+          if !iszero(hh)
+              h = setindex!!(h, hh, hindex)
+              hindex += 1
+          end
       end
-    end
-
-    while eindex <= elen
-      Qnew, hh = Two_Sum(Q, enow)
-      eindex += 1
-      # We need an extra iteration to calculate Q
-      # but we don't want to access e
-      if eindex <= elen
-          enow = e[eindex]
+      while findex ≤ flen
+          Q, hh = Two_Sum(Q, fnow)
+          findex += 1
+          fnow = safe_getindex(f, findex, flen)
+          if !iszero(hh)
+              h = setindex!!(h, hh, hindex)
+              hindex += 1
+          end
       end
-      Q = Qnew
-      if hh != 0.0
-        #h[hindex += 1] = hh
-        h = setindex!!(h, hh, hindex+=1)
+      if !iszero(Q) || isone(hindex)
+          h = setindex!!(h, Q, hindex)
+          hindex += 1
       end
-    end
-
-    while findex <= flen
-      Qnew, hh = Two_Sum(Q, fnow)
-      findex += 1
-      if findex <= flen
-          fnow = f[findex]
-      end
-      Q = Qnew
-      if hh != 0.0
-        #h[hindex += 1] = hh
-        h = setindex!!(h, hh, hindex+=1)
-      end
-    end
-    if (Q != 0.0) || (hindex == 0)
-      h = setindex!!(h, Q, hindex+=1)
-    end
-    return h, hindex
+      return h, hindex - 1
   end
 end
 
@@ -518,7 +513,7 @@ function _incircleadapt_round1(pa, pb, pc, pd, permanent, cache=nothing)
     fin1, finlength = fast_expansion_sum_zeroelim(ablen, abdet, clen, cdet, Val(32))
 
     # check to make sure we haven't truncated too much
-    if ablen < 32 || finlength < 32
+    if ablen < 32 && finlength < 32
 
       det = estimate(finlength, fin1)
       errbound = iccerrboundB * permanent
@@ -558,7 +553,7 @@ function _incircleadapt_round1(pa, pb, pc, pd, permanent, cache=nothing)
     h48, h64, h1152_1, h1152_2 = _allocs_or_cache(cache)
 
     # if they were too short, rerun them...
-    if ablen == 32 || finlength == 32
+    if ablen >= 32 || finlength >= 32
       abdetv, ablen = fast_expansion_sum_zeroelim(alen, adet, blen, bdet, h64)
       fin1v, finlength = fast_expansion_sum_zeroelim(ablen, abdetv, clen, cdet, h1152_1)
 
