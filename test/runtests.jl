@@ -309,6 +309,12 @@ end
     validate(pts[1:100],skip_dualcell=true)
 end
 
+@testset "Issue #20" begin
+    import AdaptivePredicates
+    (pa, pb, pc, pd) = ((-2.1805754507765765e45, -9.077393688127387e59), (5.60747804973906e23, 9.578697981336844e8), (-2.407029693684877e-15, -2.2237653047058956e23), (6.899627924251412e-14, 3.4680080890995206e58))
+    @test AdaptivePredicates.incircle(pa, pb, pc, pd) == Delaunator.incircle(pa, pb, pc, pd)
+end
+
 
 # test('issue #11', (t) => {
 #     validate(t, [[516, 661], [369, 793], [426, 539], [273, 525], [204, 694], [747, 750], [454, 390]]);
