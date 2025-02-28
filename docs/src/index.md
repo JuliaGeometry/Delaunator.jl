@@ -6,7 +6,7 @@
 The API consists of a set of types for static triangulations, and getting 
 info about the triangulation. 
 
-```
+```julia
 t = Triangulation(points)
 triangles(t) # get an iterator over the triangles 
 triangles(t)
@@ -31,7 +31,7 @@ clippedpoly(p, bbox)
 
 There is also a set of types for more dynamic scenarios, where you may not
 want all the computed information for speed. 
-```
+```julia
 bt, cdata = basictriangulation(points; [maxpoints=Integer]) # initialize data structures 
 bt, cdata = update!(bt, points, cdata) # after the points have been changed, may incur allocations
 h = gethull(bt, cdata)
@@ -40,7 +40,7 @@ index = index_halfedges(bt, cdata)
 
 Planned implementations
 -----------------------
-```
+```julia
 # cell diagram methods
 cells(t, bbox) #  get an iterator over the nearest point / voronoi cells given the bounding box
 bd = celldiagram(t [, centers]; [margin=0.05, boundingbox=mar()])
