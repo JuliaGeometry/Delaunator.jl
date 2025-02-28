@@ -2,7 +2,7 @@ using Documenter, Delaunator
 
 makedocs(;
     modules=[Delaunator],
-    format=Documenter.HTML(; description = "A port of the Delaunator algorithm to Julia"),
+    format=Documenter.HTML(;),
     pages=[
         "Home" => "index.md",
         "API" => "api.md"
